@@ -11,6 +11,7 @@ from astrbot.api.star import Context, Star, register
 # 插件的默认提示词
 DEFAULT_PROMPT = "Please describe the dynamic content of this GIF animation (which has been converted to a video for you) in a vivid and concise manner. Please reply in Chinese."
 
+
 def _blocking_gif_to_mp4(input_path: str, output_path: str):
     """
     一个独立的、阻塞的函数，用于在单独的线程中执行视频转换，避免阻塞事件循环。
@@ -25,7 +26,13 @@ def _blocking_gif_to_mp4(input_path: str, output_path: str):
             fps=clip.fps if clip.fps is not None else 15,
         )
 
-@register( "astrbot_plugin_gif_to_video","氕氙","GIF转视频分析插件，自动为默认服务商或手动指定的服务商启用GIF转视频避免报错。","1.1.1","https://github.com/piexian/astrbot_plugin_gif_to_video"
+
+@register(
+    "astrbot_plugin_gif_to_video",
+    "氕氙",
+    "GIF转视频分析插件，自动为默认服务商或手动指定的服务商启用GIF转视频避免报错。",
+    "1.1.1",
+    "https://github.com/piexian/astrbot_plugin_gif_to_video",
 )
 class GifToVideoPlugin(Star):
     """
@@ -41,7 +48,7 @@ class GifToVideoPlugin(Star):
         self.ffmpeg_available = False
         plugin_name = "astrbot_plugin_gif_to_video"
 
-        # 在插件加载时检查 FFmpeg 是否存在 
+        # 在插件加载时检查 FFmpeg 是否存在
         if shutil.which("ffmpeg") is None:
             logger.error(
                 f"插件 [{plugin_name}] 加载失败：未在系统中找到核心依赖 FFmpeg。"
@@ -94,7 +101,9 @@ class GifToVideoPlugin(Star):
             (
                 e
                 for e in event.message_obj.message
-                if isinstance(e, Comp.Image) and e.url and e.url.lower().endswith(".gif")
+                if isinstance(e, Comp.Image)
+                and e.url
+                and e.url.lower().endswith(".gif")
             ),
             None,
         )
@@ -104,7 +113,9 @@ class GifToVideoPlugin(Star):
 
         event.should_call_llm(False)
 
-        yield event.plain_result(f"检测到 GIF，正在为模型 `{provider.id}` 进行动态内容转换...")
+        yield event.plain_result(
+            f"检测到 GIF，正在为模型 `{provider.id}` 进行动态内容转换..."
+        )
 
         with tempfile.TemporaryDirectory() as temp_dir:
             try:
@@ -116,7 +127,7 @@ class GifToVideoPlugin(Star):
                             f.write(await resp.read())
 
                 local_mp4_path = f"{temp_dir}/output.mp4"
-                
+
                 await asyncio.to_thread(
                     _blocking_gif_to_mp4, local_gif_path, local_mp4_path
                 )
@@ -127,8 +138,10 @@ class GifToVideoPlugin(Star):
                     translation_provider = provider
                     translation_provider_id = self.config.get("translation_provider_id")
                     if translation_provider_id:
-                        custom_provider = self.context.provider_manager.get_provider_by_id(
-                            translation_provider_id
+                        custom_provider = (
+                            self.context.provider_manager.get_provider_by_id(
+                                translation_provider_id
+                            )
                         )
                         if custom_provider:
                             translation_provider = custom_provider
@@ -139,7 +152,9 @@ class GifToVideoPlugin(Star):
 
                     translation_model_name = self.config.get("translation_model_name")
                     translation_kwargs = (
-                        {"model": translation_model_name} if translation_model_name else {}
+                        {"model": translation_model_name}
+                        if translation_model_name
+                        else {}
                     )
 
                     try:
@@ -170,9 +185,9 @@ class GifToVideoPlugin(Star):
                 )
                 analysis_result = f"✨ 动态解析结果：\n{llm_resp.text}"
             except Exception as e:
-                logger.error(f"为 `{provider.id}` 处理 GIF 时发生错误: {e}", exc_info=True)
-                analysis_result = (
-                    f"抱歉，为模型 `{provider.id}` 分析 GIF 时出错（它可能不支持视频格式）。"
+                logger.error(
+                    f"为 `{provider.id}` 处理 GIF 时发生错误: {e}", exc_info=True
                 )
+                analysis_result = f"抱歉，为模型 `{provider.id}` 分析 GIF 时出错（它可能不支持视频格式）。"
 
         await event.send(event.plain_result(analysis_result))
