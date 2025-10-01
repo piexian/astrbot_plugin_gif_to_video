@@ -1,4 +1,4 @@
-# 🤖  AstrBot gif转视频插件（astrbot_plugin_gif_to_video_analysis）
+# 🤖  AstrBot gif转视频插件（astrbot_plugin_gif_to_video）
 
 
 > ⚠️ **重要提示**
