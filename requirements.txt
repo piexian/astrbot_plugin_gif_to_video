@@ -1,2 +1,2 @@
-moviepy~=1.0.3
-aiohttp~=3.9.5
+moviepy>=1.0.3
+aiohttp>=3.9.5
