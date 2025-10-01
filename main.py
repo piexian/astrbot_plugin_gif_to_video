@@ -5,6 +5,7 @@ import aiohttp
 from moviepy.editor import VideoFileClip
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import filter, AstrMessageEvent
+from astrbot.api.provider import ProviderRequest
 import astrbot.api.message_components as Comp
 from astrbot.api.star import Context, Star, register
 
@@ -75,18 +76,24 @@ class GifToVideoPlugin(Star):
             logger.error(f"无法获取默认服务商 ID: {e}", exc_info=True)
             return None
 
-    @filter.event_message_type(filter.EventMessageType.ALL)
-    async def adapt_gif_smartly(self, event: AstrMessageEvent):
+    @filter.on_llm_request()
+    async def adapt_gif_smartly(self, event: AstrMessageEvent, req: ProviderRequest):
         # 如果 FFmpeg 不可用，则不执行任何操作
         if not self.ffmpeg_available:
             return
 
-        provider = self.context.provider_manager.get_using_provider(
-            umo=event.unified_msg_origin
+        # 从请求中查找 GIF
+        gif_url = next(
+            (url for url in req.image_urls if url and url.lower().endswith(".gif")), None
         )
+        if not gif_url:
+            return
+
+        provider = req.provider
         if not provider:
             return
 
+        # 检查此 provider 是否已启用 GIF 转换
         enabled_providers = self.config.get("enabled_providers", [])
         is_enabled = False
         if enabled_providers:
@@ -97,37 +104,23 @@ class GifToVideoPlugin(Star):
         if not is_enabled:
             return
 
-        gif_element = next(
-            (
-                e
-                for e in event.message_obj.message
-                if isinstance(e, Comp.Image)
-                and e.url
-                and e.url.lower().endswith(".gif")
-            ),
-            None,
-        )
-
-        if not gif_element:
-            return
-
-        event.should_call_llm(False)
-
-        yield event.plain_result(
-            f"检测到 GIF，正在为模型 `{provider.id}` 进行动态内容转换..."
+        # 发送一个提示，告知用户正在进行转换
+        await event.send(
+            event.plain_result(f"检测到 GIF，正在为模型 `{provider.id}` 进行动态内容转换...")
         )
 
         with tempfile.TemporaryDirectory() as temp_dir:
             try:
+                # 下载 GIF
                 local_gif_path = f"{temp_dir}/input.gif"
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(gif_element.url) as resp:
+                    async with session.get(gif_url) as resp:
                         resp.raise_for_status()
                         with open(local_gif_path, "wb") as f:
                             f.write(await resp.read())
 
+                # 转换 GIF 为 MP4
                 local_mp4_path = f"{temp_dir}/output.mp4"
-
                 await asyncio.to_thread(
                     _blocking_gif_to_mp4, local_gif_path, local_mp4_path
                 )
@@ -180,14 +173,19 @@ class GifToVideoPlugin(Star):
                         else:
                             logger.warning("翻译失败且未启用回退，将使用原始提示词。")
 
-                llm_resp = await event.request_llm(
-                    prompt=final_prompt, image_urls=[local_mp4_path]
-                )
-                analysis_result = f"✨ 动态解析结果：\n{llm_resp.text}"
+                # 修改原始请求
+                req.prompt = final_prompt
+                req.image_urls.remove(gif_url)
+                req.image_urls.append(local_mp4_path)
+
             except Exception as e:
                 logger.error(
                     f"为 `{provider.id}` 处理 GIF 时发生错误: {e}", exc_info=True
                 )
-                analysis_result = f"抱歉，为模型 `{provider.id}` 分析 GIF 时出错（它可能不支持视频格式）。"
-
-        await event.send(event.plain_result(analysis_result))
+                # 发送错误消息并停止事件，防止损坏的请求被发送
+                await event.send(
+                    event.plain_result(
+                        f"抱歉，为模型 `{provider.id}` 分析 GIF 时出错（它可能不支持视频格式）。"
+                    )
+                )
+                event.stop_event()
