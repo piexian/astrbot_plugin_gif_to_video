@@ -84,7 +84,8 @@ class GifToVideoPlugin(Star):
 
         # 从请求中查找 GIF
         gif_url = next(
-            (url for url in req.image_urls if url and url.lower().endswith(".gif")), None
+            (url for url in req.image_urls if url and url.lower().endswith(".gif")),
+            None,
         )
         if not gif_url:
             return
@@ -106,7 +107,9 @@ class GifToVideoPlugin(Star):
 
         # 发送一个提示，告知用户正在进行转换
         await event.send(
-            event.plain_result(f"检测到 GIF，正在为模型 `{provider.id}` 进行动态内容转换...")
+            event.plain_result(
+                f"检测到 GIF，正在为模型 `{provider.id}` 进行动态内容转换..."
+            )
         )
 
         with tempfile.TemporaryDirectory() as temp_dir:
