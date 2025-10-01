@@ -23,7 +23,7 @@
     
     ```bash
     
-    cd /path/to/your/AstrBot/data/plugins
+    cd /AstrBot/data/plugins
     git clone https://github.com/piexian/astrbot_plugin_gif_to_video.git
     
     ```
@@ -56,7 +56,6 @@ AstrBot 默认项目和Docker镜像中**不包含**此依赖，您很可能需�
 
 ```
 📂 /astrbot_plugin_gif_to_video
-├── __init__.py       (缓存文件)
 ├── main.py           (核心逻辑)
 ├── _conf_schema.json (WebUI 配置)
 ├── requirements.txt  (依赖)
