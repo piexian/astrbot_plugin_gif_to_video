@@ -4,5 +4,5 @@ description: GIF转视频分析插件，自动为默认服务商或手动指定�
 version: "1.2.0"
 repo: https://github.com/piexian/astrbot_plugin_gif_to_video
 requirements:
-  - moviepy~=1.0.3
-  - aiohttp~=3.9.5
+  - moviepy>=1.0.3
+  - aiohttp>=3.9.5
