@@ -1,0 +1,37 @@
+# .github/workflows/lint.yml
+
+name: Python Linting with Ruff
+
+# 触发工作流的事件
+on:
+  push:
+    branches: [ "main", "master" ] # 当推送到主分支时
+  pull_request:
+    branches: [ "main", "master" ] # 当有 Pull Request 指向主分支时
+
+# 工作流的任务
+jobs:
+  lint:
+    runs-on: ubuntu-latest # 在最新的 Ubuntu 环境中运行
+    steps:
+      # 第一步：检出代码
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      # 第二步：设置 Python 环境
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11' # 可以根据项目需求调整版本
+
+      # 第三步：安装 Ruff
+      - name: Install Ruff
+        run: pip install ruff
+
+      # 第四步：运行 Ruff 检查
+      - name: Run Ruff Linter
+        run: ruff check .
+
+      # 第五步：运行 Ruff 格式化检查
+      - name: Run Ruff Formatter Check
+        run: ruff format --check .
