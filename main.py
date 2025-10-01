@@ -1,24 +1,141 @@
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
+import os
+import tempfile
+import aiohttp
+import asyncio
+from moviepy.editor import VideoFileClip
+from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
-from astrbot.api import logger
+from astrbot.api import logger, AstrBotConfig
+import astrbot.api.message_components as Comp
 
-@register("helloworld", "YourName", "一个简单的 Hello World 插件", "1.0.0")
-class MyPlugin(Star):
-    def __init__(self, context: Context):
+# 插件的默认提示词
+DEFAULT_PROMPT = "Please describe the dynamic content of this GIF animation (which has been converted to a video for you) in a vivid and concise manner. Please reply in Chinese."
+
+def _blocking_gif_to_mp4(input_path: str, output_path: str):
+    """
+    一个独立的、阻塞的函数，用于在单独的线程中执行视频转换，避免阻塞事件循环。
+    """
+    with VideoFileClip(input_path) as clip:
+        clip.write_videofile(
+            output_path, codec='libx264', preset='ultrafast',
+            verbose=False, logger=None,
+            fps=clip.fps if clip.fps is not None else 15
+        )
+
+@register("astrbot_plugin_gif_to_video","piexian","GIF转视频分析插件，自动为默认服务商或手动指定的服务商启用GIF转视频避免报错。","1.0"
+)
+class GifToVideoPlugin(Star):
+    """
+    一个智能的GIF转化插件。
+    - 自动模式：当配置为空时，自动为 AstrBot 的全局默认服务商工作。
+    - 手动模式：当配置不为空时，严格按照配置列表中的服务商 ID 工作。
+    """
+    def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
+        self.config = config
+        self.default_provider_id = self._get_default_provider_id()
+        
+        enabled_providers = self.config.get("enabled_providers", [])
+        plugin_name = "astrbot_plugin_gif_to_video"
+        if enabled_providers:
+            logger.info(f"{plugin_name} 已加载，运行在【手动模式】，适配服务商: {enabled_providers}")
+        else:
+            logger.info(f"{plugin_name} 已加载，运行在【自动模式】，将适配默认服务商: {self.default_provider_id or '未设置'}")
 
-    async def initialize(self):
-        """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
-    
-    # 注册指令的装饰器。指令名为 helloworld。注册成功后，发送 `/helloworld` 就会触发这个指令，并回复 `你好, {user_name}!`
-    @filter.command("helloworld")
-    async def helloworld(self, event: AstrMessageEvent):
-        """这是一个 hello world 指令""" # 这是 handler 的描述，将会被解析方便用户了解插件内容。建议填写。
-        user_name = event.get_sender_name()
-        message_str = event.message_str # 用户发的纯文本消息字符串
-        message_chain = event.get_messages() # 用户所发的消息的消息链 # from astrbot.api.message_components import *
-        logger.info(message_chain)
-        yield event.plain_result(f"Hello, {user_name}, 你发了 {message_str}!") # 发送一条纯文本消息
+    def _get_default_provider_id(self) -> str | None:
+        """从 AstrBot 的主配置中获取默认的 LLM 服务商 ID。"""
+        try:
+            main_config = self.context.get_config()
+            return main_config.get("llm", {}).get("default_provider_id")
+        except Exception as e:
+            logger.error(f"无法获取默认服务商 ID: {e}", exc_info=True)
+            return None
 
-    async def terminate(self):
-        """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    @filter.priority(100)
+    async def adapt_gif_smartly(self, event: AstrMessageEvent):
+        provider = self.context.get_using_provider(umo=event.unified_msg_origin)
+        if not provider:
+            return
+
+        enabled_providers = self.config.get("enabled_providers", [])
+        is_enabled = False
+        if enabled_providers:
+            is_enabled = provider.id in enabled_providers
+        else:
+            is_enabled = provider.id == self.default_provider_id
+
+        if not is_enabled:
+            return
+
+        gif_element = next((
+            e for e in event.message_obj.message
+            if isinstance(e, Comp.Image) and e.url and e.url.lower().endswith('.gif')
+        ), None)
+
+        if not gif_element:
+            return
+
+        event.stop_event()
+        
+        yield event.plain_result(f"检测到 GIF，正在为模型 `{provider.id}` 进行动态内容转换...")
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            try:
+                local_gif_path = os.path.join(temp_dir, "input.gif")
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(gif_element.url) as resp:
+                        resp.raise_for_status()
+                        with open(local_gif_path, 'wb') as f:
+                            f.write(await resp.read())
+
+                local_mp4_path = os.path.join(temp_dir, "output.mp4")
+                
+
+                await asyncio.to_thread(_blocking_gif_to_mp4, local_gif_path, local_mp4_path)
+
+                # **提示词翻译处理**
+                final_prompt = self.config.get("custom_prompt", DEFAULT_PROMPT)
+                if self.config.get("auto_translate_prompt", False):
+                    translation_provider = provider
+                    translation_provider_id = self.config.get("translation_provider_id")
+                    if translation_provider_id:
+                        custom_provider = self.context.get_provider_by_id(translation_provider_id)
+                        if custom_provider:
+                            translation_provider = custom_provider
+                        else:
+                            logger.warning(f"指定的翻译服务商 '{translation_provider_id}' 未找到，将回退使用主服务商。")
+                    
+                    translation_model_name = self.config.get("translation_model_name")
+                    translation_kwargs = {"model": translation_model_name} if translation_model_name else {}
+
+                    try:
+                        translation_resp = await translation_provider.text_chat(
+                            prompt=f"Translate the following text into English. Output only the translated text itself, without any extra explanations or introductions:\n\n---\n\n{final_prompt}",
+                            **translation_kwargs
+                        )
+                        final_prompt = translation_resp.text
+                    except Exception as e:
+                        logger.error(f"使用 '{translation_provider.id}' 翻译失败: {e}")
+                        if self.config.get("fallback_to_main_provider", True) and translation_provider is not provider:
+                            logger.info("翻译失败，尝试使用主服务商进行回退翻译...")
+                            try:
+                                fallback_resp = await provider.text_chat(
+                                    prompt=f"Translate the following text into English. Output only the translated text itself, without any extra explanations or introductions:\n\n---\n\n{final_prompt}"
+                                )
+                                final_prompt = fallback_resp.text
+                            except Exception as e2:
+                                logger.error(f"主服务商回退翻译同样失败: {e2}")
+                        else:
+                            logger.warning("翻译失败且未启用回退，将使用原始提示词。")
+
+                llm_resp = await provider.text_chat(
+                    prompt=final_prompt,
+                    image_urls=[local_mp4_path]
+                )
+                analysis_result = f"✨ 动态解析结果：\n{llm_resp.text}"
+            except Exception as e:
+                logger.error(f"为 `{provider.id}` 处理 GIF 时发生错误: {e}", exc_info=True)
+                analysis_result = f"抱歉，为模型 `{provider.id}` 分析 GIF 时出错（它可能不支持视频格式）。"
+            
+        await event.send(event.plain_result(analysis_result))
