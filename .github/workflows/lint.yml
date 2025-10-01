@@ -34,9 +34,6 @@ jobs:
           ruff check main.py --fix
           ruff format main.py
 
-      # 第五步：提交自动修复的更改
-      - name: Commit changes
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "style: auto-fix with ruff"
-          file_pattern: main.py
+      # 第五步：运行 Ruff 格式化检查
+      - name: Run Ruff Formatter Check
+        run: ruff format --check .
