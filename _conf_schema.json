@@ -31,12 +31,13 @@
     "default": true
   },
   "enabled_providers": {
-    "description": "指定启用gif分析的服务商。。",
+    "description": "指定启用gif分析的服务商",
     "type": "list",
-    "hint": "留空以自动适配您的默认模型。若要为多个或非默认模型启用，请在此处添加它们的ID。",
+    "hint": "留空以自动适配您的默认模型。若要为启用，请在此选择它们的服务商ID。",
     "default": [],
     "items": {
-      "type": "string"
+      "type": "string",
+      "_special": "select_provider"
     }
   }
 }

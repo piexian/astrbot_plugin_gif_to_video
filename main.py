@@ -34,7 +34,7 @@ def _blocking_gif_to_mp4(input_path: str, output_path: str):
     "astrbot_plugin_gif_to_video",
     "GeminiAI & 氕氙",
     "GIF转视频分析插件，自动为默认服务商或手动指定的服务商启用GIF转视频避免报错。",
-    "1.1.1",
+    "1.2.0",
     "https://github.com/piexian/astrbot_plugin_gif_to_video",
 )
 class GifToVideoPlugin(Star):
