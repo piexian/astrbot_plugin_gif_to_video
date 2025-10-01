@@ -20,13 +20,15 @@
 -   可以直接在 AstrBot 的插件市场搜索 `gif转视频分析插件`或者 `astrbot_plugin_gif_to_video`，点击安装即可。
 
 -   或者可以直接克隆源码到插件文件夹：
+    
     ```bash
-    # 克隆仓库到插件目录
+    
     cd /path/to/your/AstrBot/data/plugins
-    git clone https://github.com/your-username/astrbot_plugin_gif_to_video_analysis.git
-
-    # 控制台重启 AstrBot
+    git clone https://github.com/piexian/astrbot_plugin_gif_to_video.git
+    
     ```
+    控制台重启 AstrBot
+    
 ### ⚠️ 前置依赖：FFmpeg
 
 **本插件的正常运行依赖于FFmpeg程序。** 
@@ -42,7 +44,8 @@ AstrBot 默认项目和Docker镜像中**不包含**此依赖，您很可能需�
     ```bash
     # Debian / Ubuntu
     sudo apt-get install ffmpeg
-
+    ```
+    ```bash
     # CentOS / RHEL
     sudo yum install ffmpeg
     ```
