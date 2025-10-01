@@ -34,7 +34,7 @@ def _blocking_gif_to_mp4(input_path: str, output_path: str):
     "astrbot_plugin_gif_to_video",
     "GeminiAI & 氕氙",
     "GIF转视频分析插件，自动为默认服务商或手动指定的服务商启用GIF转视频避免报错。",
-    "1.2.0",
+    "1.3.1",
     "https://github.com/piexian/astrbot_plugin_gif_to_video",
 )
 class GifToVideoPlugin(Star):
@@ -85,7 +85,7 @@ class GifToVideoPlugin(Star):
             return
 
         provider = self.context.provider_manager.get_using_provider(
-            umo=event.unified_msg_origin
+            "llm", umo=event.unified_msg_origin
         )
         if not provider:
             return
@@ -119,33 +119,48 @@ class GifToVideoPlugin(Star):
             f"检测到 GIF，正在为模型 `{provider.id}` 进行动态内容转换..."
         )
 
+        analysis_result = ""
         with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            local_gif_path = temp_path / "input.gif"
+            local_mp4_path = temp_path / "output.mp4"
+
+            # 1. 下载 GIF
             try:
-                temp_path = Path(temp_dir)
-                local_gif_path = temp_path / "input.gif"
                 async with aiohttp.ClientSession() as session:
                     async with session.get(gif_element.url) as resp:
                         resp.raise_for_status()
                         with open(local_gif_path, "wb") as f:
                             f.write(await resp.read())
+            except aiohttp.ClientError as e:
+                logger.error(f"下载 GIF 失败 ({gif_element.url}): {e}", exc_info=True)
+                analysis_result = "抱歉，下载 GIF 时出错，请检查链接是否有效。"
+                await event.send(event.plain_result(analysis_result))
+                return
 
-                local_mp4_path = temp_path / "output.mp4"
-
+            # 2. 转换 GIF 为 MP4
+            try:
                 await asyncio.to_thread(
                     _blocking_gif_to_mp4, str(local_gif_path), str(local_mp4_path)
                 )
+            except Exception as e:
+                logger.error(f"GIF 转换 MP4 失败: {e}", exc_info=True)
+                analysis_result = "抱歉，处理 GIF 时出错（可能是文件损坏或格式不受支持）。"
+                await event.send(event.plain_result(analysis_result))
+                return
 
+            # 3. 请求 LLM 分析
+            try:
                 final_prompt = await self._get_final_prompt(provider)
-
                 llm_resp = await event.request_llm(
                     prompt=final_prompt, image_urls=[str(local_mp4_path)]
                 )
                 analysis_result = f"✨ 动态解析结果：\n{llm_resp.text}"
             except Exception as e:
-                logger.error(
-                    f"为 `{provider.id}` 处理 GIF 时发生错误: {e}", exc_info=True
+                logger.error(f"请求 LLM 分析失败: {e}", exc_info=True)
+                analysis_result = (
+                    f"抱歉，为模型 `{provider.id}` 分析 GIF 时出错（它可能不支持视频格式）。"
                 )
-                analysis_result = f"抱歉，为模型 `{provider.id}` 分析 GIF 时出错（它可能不支持视频格式）。"
 
         await event.send(event.plain_result(analysis_result))
 
