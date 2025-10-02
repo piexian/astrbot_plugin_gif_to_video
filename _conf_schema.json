@@ -30,14 +30,11 @@
     "hint": "如果指定的翻译服务商失败，是否尝试使用当前会话的主模型再次进行翻译。开启以提高可靠性，关闭以严格控制成本。",
     "default": true
   },
-  "enabled_providers": {
+  "enabled_provider_id": {
     "description": "指定启用gif分析的服务商",
-    "type": "list",
-    "hint": "留空以自动适配您的默认模型。若要为启用，请在此选择它们的服务商ID。",
-    "default": [],
-    "items": {
-      "type": "string",
-      "_special": "select_provider"
-    }
+    "type": "string",
+    "hint": "留空以自动适配您的默认模型。若要为某个特定模型启用，请在此处选择它的服务商ID。",
+    "default": "",
+    "_special": "select_provider"
   }
 }
