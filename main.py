@@ -82,7 +82,9 @@ class GifToVideoPlugin(Star):
             return None
 
     @filter.on_llm_request()
-    async def adapt_gif_smartly(self, event: AstrMessageEvent, req: ProviderRequest):
+    async def adapt_gif_smartly(
+        self, event: AstrMessageEvent, req: ProviderRequest, **kwargs
+    ):
         if not self.ffmpeg_available:
             return
 
