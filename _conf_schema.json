@@ -1,35 +1,4 @@
 {
-  "auto_translate_prompt": {
-    "description": "自动将提示词翻译为英语",
-    "type": "bool",
-    "hint": "开启后，插件会将您在下方填写的中文提示词自动翻译为英语，以获得更好的分析效果。默认关闭。",
-    "default": false
-  },
-  "custom_prompt": {
-    "description": "自定义分析提示词",
-    "type": "text",
-    "hint": "您可以直接修改此处的默认英文提示词。如果您希望使用中文，请在此处填写中文提示词，并确保已开启上方的“自动翻译”选项。",
-    "default": "Please describe the dynamic content of this GIF animation (which has been converted to a video for you) in a vivid and concise manner. Please reply in Chinese."
-  },
-  "translation_provider_id": {
-    "description": "指定用于翻译提示词的服务商",
-    "type": "string",
-    "hint": "留空则使用当前会话的主模型进行翻译。指定一个更轻量、更便宜的模型（如glm-4.5-flash）可以节约成本。",
-    "default": "",
-    "_special": "select_provider"
-  },
-  "translation_model_name": {
-    "description": "指定翻译服务商使用的具体模型",
-    "type": "string",
-    "hint": "例如 'glm-4.5-flash'。如果您的翻译服务商有多个模型，可以在此指定。留空则使用该服务商的默认模型。",
-    "default": ""
-  },
-  "fallback_to_main_provider": {
-    "description": "翻译失败时回退到主模型",
-    "type": "bool",
-    "hint": "如果指定的翻译服务商失败，是否尝试使用当前会话的主模型再次进行翻译。开启以提高可靠性，关闭以严格控制成本。",
-    "default": true
-  },
   "enabled_provider_id": {
     "description": "指定启用gif分析的服务商",
     "type": "string",
