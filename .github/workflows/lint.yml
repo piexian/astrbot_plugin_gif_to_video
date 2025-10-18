@@ -31,8 +31,8 @@ jobs:
       # 第四步：使用 Ruff 自动修复和格式化
       - name: Run Ruff to fix and format
         run: |
-          ruff check main.py --fix
-          ruff format main.py
+          ruff check . --fix
+          ruff format .
 
       # 第五步：运行 Ruff 格式化检查
       - name: Run Ruff Formatter Check

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 import aiohttp
+
 # 兼容不同版本的moviepy
 try:
     from moviepy.editor import VideoFileClip  # 旧版本兼容
@@ -93,7 +94,10 @@ class GifToVideoPlugin(Star):
 
             # 遍历所有服务商，通过匹配实例找到其 ID
             # 遍历字典项以匹配实例 -> ID
-            for provider_id, provider_inst in self.context.provider_manager.get_all_providers().items():
+            for (
+                provider_id,
+                provider_inst,
+            ) in self.context.provider_manager.get_all_providers().items():
                 if provider_inst is curr_provider:
                     return provider_id
 
@@ -119,41 +123,46 @@ class GifToVideoPlugin(Star):
 
         # 添加调试日志
         logger.info(f"[{self.PLUGIN_NAME}] 收到LLM请求，检查是否包含GIF")
-        
+
         # 1. 检查消息中是否包含 GIF
         gif_url = None
         gif_file = None
-        
+
         # 检查消息链中的图片组件
         for comp in event.message_obj.message:
             if isinstance(comp, Comp.Image):
                 # 检查是否是GIF文件
-                if comp.file and comp.file.lower().endswith('.gif'):
+                if comp.file and comp.file.lower().endswith(".gif"):
                     gif_file = comp.file
                     gif_url = comp.url
                     logger.info(f"[{self.PLUGIN_NAME}] 检测到GIF文件: {gif_file}")
                     break
                 # 检查URL是否包含GIF
-                elif comp.url and '.gif' in comp.url.lower():
+                elif comp.url and ".gif" in comp.url.lower():
                     gif_url = comp.url
                     logger.info(f"[{self.PLUGIN_NAME}] 检测到GIF URL: {gif_url}")
                     break
-        
+
         if not gif_url and not gif_file:
             logger.debug(f"[{self.PLUGIN_NAME}] 未检测到GIF，跳过处理")
             return
 
         # 2. 检查插件是否为当前会话启用
-        provider_id = getattr(req, 'provider_id', None)
+        provider_id = getattr(req, "provider_id", None)
         if not provider_id:
             # 尝试从其他方式获取provider_id
-            provider_inst = self.context.get_using_provider(umo=event.unified_msg_origin)
+            provider_inst = self.context.get_using_provider(
+                umo=event.unified_msg_origin
+            )
             if provider_inst:
-                for p_id, p_inst in self.context.provider_manager.get_all_providers().items():
+                for (
+                    p_id,
+                    p_inst,
+                ) in self.context.provider_manager.get_all_providers().items():
                     if p_inst is provider_inst:
                         provider_id = p_id
                         break
-        
+
         if not provider_id:
             logger.warning(f"[{self.PLUGIN_NAME}] 无法获取provider_id")
             return
@@ -162,13 +171,17 @@ class GifToVideoPlugin(Star):
         is_enabled = False
         if enabled_provider_id:  # 手动模式
             is_enabled = provider_id == enabled_provider_id
-            logger.info(f"[{self.PLUGIN_NAME}] 手动模式，检查provider_id: {provider_id} == {enabled_provider_id}")
+            logger.info(
+                f"[{self.PLUGIN_NAME}] 手动模式，检查provider_id: {provider_id} == {enabled_provider_id}"
+            )
         else:  # 自动模式
             if self.default_provider_id is None:
                 self.default_provider_id = self._get_default_provider_id()
             if self.default_provider_id:
                 is_enabled = provider_id == self.default_provider_id
-                logger.info(f"[{self.PLUGIN_NAME}] 自动模式，检查provider_id: {provider_id} == {self.default_provider_id}")
+                logger.info(
+                    f"[{self.PLUGIN_NAME}] 自动模式，检查provider_id: {provider_id} == {self.default_provider_id}"
+                )
 
         if not is_enabled:
             logger.info(f"[{self.PLUGIN_NAME}] 插件未启用，跳过处理")
@@ -176,10 +189,10 @@ class GifToVideoPlugin(Star):
 
         # 3. 执行转换
         logger.info(f"[{self.PLUGIN_NAME}] 开始处理GIF转换")
-        
+
         # 确定GIF源
         gif_source = gif_url if gif_url else gif_file
-        
+
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             local_gif_path = temp_path / "input.gif"
@@ -187,7 +200,7 @@ class GifToVideoPlugin(Star):
 
             try:
                 # 下载或复制GIF文件
-                if gif_url and gif_url.startswith(('http://', 'https://')):
+                if gif_url and gif_url.startswith(("http://", "https://")):
                     async with aiohttp.ClientSession() as session:
                         async with session.get(gif_url) as resp:
                             resp.raise_for_status()
@@ -201,7 +214,10 @@ class GifToVideoPlugin(Star):
                     logger.error(f"[{self.PLUGIN_NAME}] 无效的GIF源")
                     return
             except Exception as e:
-                logger.error(f"[{self.PLUGIN_NAME}] 处理GIF失败 ({gif_source}): {e}", exc_info=True)
+                logger.error(
+                    f"[{self.PLUGIN_NAME}] 处理GIF失败 ({gif_source}): {e}",
+                    exc_info=True,
+                )
                 return
 
             try:
@@ -209,16 +225,16 @@ class GifToVideoPlugin(Star):
                     _blocking_gif_to_mp4, str(local_gif_path), str(local_mp4_path)
                 )
                 logger.info(f"[{self.PLUGIN_NAME}] GIF转换成功: {local_mp4_path}")
-                
+
                 # 将转换后的视频添加到请求中
-                if not hasattr(req, 'image_urls'):
+                if not hasattr(req, "image_urls"):
                     req.image_urls = []
                 req.image_urls.append(str(local_mp4_path))
-                
+
                 # 从消息中移除GIF
-                if hasattr(req, 'prompt') and '[图片]' in req.prompt:
-                    req.prompt = req.prompt.replace('[图片]', '[视频(GIF已转换)]', 1)
-                
+                if hasattr(req, "prompt") and "[图片]" in req.prompt:
+                    req.prompt = req.prompt.replace("[图片]", "[视频(GIF已转换)]", 1)
+
                 logger.info(f"[{self.PLUGIN_NAME}] 已将转换后的视频添加到请求中")
             except Exception as e:
                 logger.error(f"[{self.PLUGIN_NAME}] GIF转换失败: {e}", exc_info=True)
