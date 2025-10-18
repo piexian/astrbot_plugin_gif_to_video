@@ -92,13 +92,23 @@ class GifToVideoPlugin(Star):
                 return None
 
             # 遍历所有服务商，通过匹配实例找到其 ID
-            # 遍历字典项以匹配实例 -> ID
-            for (
-                provider_id,
-                provider_inst,
-            ) in self.context.provider_manager.get_all_providers().items():
-                if provider_inst is curr_provider:
-                    return provider_id
+            # 使用 inst_map 字典以匹配实例 -> ID
+            if hasattr(self.context.provider_manager, "inst_map"):
+                for (
+                    provider_id,
+                    provider_inst,
+                ) in self.context.provider_manager.inst_map.items():
+                    if provider_inst is curr_provider:
+                        return provider_id
+            else:
+                # 如果没有 inst_map，尝试使用 get_all_providers 方法
+                if hasattr(self.context.provider_manager, "get_all_providers"):
+                    for (
+                        provider_id,
+                        provider_inst,
+                    ) in self.context.provider_manager.get_all_providers().items():
+                        if provider_inst is curr_provider:
+                            return provider_id
 
             logger.warning("无法为当前服务商实例找到匹配的 ID。")
             return None
@@ -154,13 +164,21 @@ class GifToVideoPlugin(Star):
                 umo=event.unified_msg_origin
             )
             if provider_inst:
-                for (
-                    p_id,
-                    p_inst,
-                ) in self.context.provider_manager.get_all_providers().items():
-                    if p_inst is provider_inst:
-                        provider_id = p_id
-                        break
+                if hasattr(self.context.provider_manager, "inst_map"):
+                    for p_id, p_inst in self.context.provider_manager.inst_map.items():
+                        if p_inst is provider_inst:
+                            provider_id = p_id
+                            break
+                else:
+                    # 如果没有 inst_map，尝试使用 get_all_providers 方法
+                    if hasattr(self.context.provider_manager, "get_all_providers"):
+                        for (
+                            p_id,
+                            p_inst,
+                        ) in self.context.provider_manager.get_all_providers().items():
+                            if p_inst is provider_inst:
+                                provider_id = p_id
+                                break
 
         if not provider_id:
             logger.warning(f"[{self.PLUGIN_NAME}] 无法获取provider_id")
