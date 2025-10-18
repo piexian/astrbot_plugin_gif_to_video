@@ -120,9 +120,15 @@ pytest -q
 
 ## ⚠️ AI 生成声明
 
-本插件的核心代码由 **GeminiAI** 在与 **氕氙** 的合作与指导下生成。
+本插件的核心代码由 **GeminiAI** 生成，**GLM**修复问题。
 
 ## 📝 更新日志
+
+### v2.0.2
+- 修复了moviepy 2.x版本兼容性问题
+- 添加了多版本moviepy导入支持，兼容1.0.3到2.1.2+版本
+- 解决了`ModuleNotFoundError: No module named 'moviepy.editor'`错误
+- 改进了导入错误处理机制，提高了插件的健壮性
 
 ### v2.0.1
 - 修复了插件不触发的问题

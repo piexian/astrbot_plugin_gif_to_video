@@ -5,7 +5,14 @@ from pathlib import Path
 from typing import Optional
 
 import aiohttp
-from moviepy.editor import VideoFileClip
+# 兼容不同版本的moviepy
+try:
+    from moviepy.editor import VideoFileClip  # 旧版本兼容
+except ImportError:
+    try:
+        from moviepy.video.io.VideoFileClip import VideoFileClip  # 新版本2.x
+    except ImportError:
+        from moviepy.video import VideoFileClip  # 备用方案
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
