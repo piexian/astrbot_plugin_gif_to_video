@@ -1,7 +1,6 @@
 """pytest tests for conversion logic. This test is lightweight and will skip if moviepy isn't installed or ffmpeg missing."""
 
 import shutil
-from pathlib import Path
 import pytest
 
 

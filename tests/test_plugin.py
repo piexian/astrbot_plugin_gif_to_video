@@ -1,19 +1,18 @@
 """Tests for the GIF to Video plugin functionality."""
 
+import sys
+import types
 import pytest
 import tempfile
 import shutil
 from pathlib import Path
 from unittest.mock import Mock, patch, AsyncMock
-import sys
-import os
 
 # Add the plugin directory to the path
 plugin_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(plugin_dir))
 
 # Mock astrbot modules
-import types
 
 astrbot = types.ModuleType("astrbot")
 astrbot.api = types.ModuleType("astrbot.api")
