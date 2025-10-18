@@ -7,7 +7,7 @@ from typing import Optional
 import aiohttp
 from moviepy.editor import VideoFileClip
 from astrbot.api import AstrBotConfig, logger
-from astrbot.api.event import AstrMessageEvent, filter, EventMessageType
+from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 import astrbot.api.message_components as Comp
 
@@ -35,7 +35,7 @@ def _blocking_gif_to_mp4(input_path: str, output_path: str):
     "astrbot_plugin_gif_to_video",
     "氕氙",
     "GIF转视频分析插件，自动为默认服务商或手动指定的服务商启用GIF转视频避免报错。",
-    "2.0.0",
+    "2.0.1",
     "https://github.com/piexian/astrbot_plugin_gif_to_video",
 )
 class GifToVideoPlugin(Star):
@@ -98,87 +98,121 @@ class GifToVideoPlugin(Star):
             )
             return None
 
-    @filter.event_message_type(EventMessageType.ALL)
-    async def handle_gif_message(self, event: AstrMessageEvent, **kwargs):
+    async def terminate(self):
+        """插件终止时调用，释放资源"""
+        logger.info(f"[{self.PLUGIN_NAME}] 插件已终止")
+
+    @filter.on_llm_request(priority=100)
+    async def handle_gif_message(self, event: AstrMessageEvent, req):
+        """
+        处理包含GIF的消息，将其转换为MP4视频
+        """
         if not self.ffmpeg_available:
             return
 
+        # 添加调试日志
+        logger.info(f"[{self.PLUGIN_NAME}] 收到LLM请求，检查是否包含GIF")
+        
         # 1. 检查消息中是否包含 GIF
         gif_url = None
-        # 两种常见消息结构都尝试兼容：直接的 raw_message 段 或者携带 file/url 的 segment
-        if event.message_obj and hasattr(event.message_obj, "raw_message"):
-            raw_message = event.message_obj.raw_message
-            if "message" in raw_message and isinstance(raw_message["message"], list):
-                for segment in raw_message["message"]:
-                    seg_type = segment.get("type")
-                    data = segment.get("data", {})
-                    file_name = data.get("file", "") or data.get("name", "")
-                    url = data.get("url") or data.get("uri")
-                    if seg_type == "image" and file_name.lower().endswith(".gif"):
-                        gif_url = url
-                        break
-        if not gif_url:
+        gif_file = None
+        
+        # 检查消息链中的图片组件
+        for comp in event.message_obj.message:
+            if isinstance(comp, Comp.Image):
+                # 检查是否是GIF文件
+                if comp.file and comp.file.lower().endswith('.gif'):
+                    gif_file = comp.file
+                    gif_url = comp.url
+                    logger.info(f"[{self.PLUGIN_NAME}] 检测到GIF文件: {gif_file}")
+                    break
+                # 检查URL是否包含GIF
+                elif comp.url and '.gif' in comp.url.lower():
+                    gif_url = comp.url
+                    logger.info(f"[{self.PLUGIN_NAME}] 检测到GIF URL: {gif_url}")
+                    break
+        
+        if not gif_url and not gif_file:
+            logger.debug(f"[{self.PLUGIN_NAME}] 未检测到GIF，跳过处理")
             return
 
         # 2. 检查插件是否为当前会话启用
-        # 获取当前会话使用的 provider 实例
-        provider_inst = self.context.get_using_provider(umo=event.unified_msg_origin)
-        if not provider_inst:
-            return
-
-        provider_id = None
-        for p_id, p_inst in self.context.provider_manager.get_all_providers().items():
-            if p_inst is provider_inst:
-                provider_id = p_id
-                break
+        provider_id = getattr(req, 'provider_id', None)
         if not provider_id:
+            # 尝试从其他方式获取provider_id
+            provider_inst = self.context.get_using_provider(umo=event.unified_msg_origin)
+            if provider_inst:
+                for p_id, p_inst in self.context.provider_manager.get_all_providers().items():
+                    if p_inst is provider_inst:
+                        provider_id = p_id
+                        break
+        
+        if not provider_id:
+            logger.warning(f"[{self.PLUGIN_NAME}] 无法获取provider_id")
             return
 
         enabled_provider_id = self.config.get("enabled_provider_id", "")
         is_enabled = False
         if enabled_provider_id:  # 手动模式
             is_enabled = provider_id == enabled_provider_id
+            logger.info(f"[{self.PLUGIN_NAME}] 手动模式，检查provider_id: {provider_id} == {enabled_provider_id}")
         else:  # 自动模式
             if self.default_provider_id is None:
                 self.default_provider_id = self._get_default_provider_id()
             if self.default_provider_id:
                 is_enabled = provider_id == self.default_provider_id
+                logger.info(f"[{self.PLUGIN_NAME}] 自动模式，检查provider_id: {provider_id} == {self.default_provider_id}")
 
         if not is_enabled:
+            logger.info(f"[{self.PLUGIN_NAME}] 插件未启用，跳过处理")
             return
 
-        # 3. 执行转换和发送
-        await event.send(event.plain_result("检测到 GIF，正在转换..."))
+        # 3. 执行转换
+        logger.info(f"[{self.PLUGIN_NAME}] 开始处理GIF转换")
+        
+        # 确定GIF源
+        gif_source = gif_url if gif_url else gif_file
+        
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             local_gif_path = temp_path / "input.gif"
             local_mp4_path = temp_path / "output.mp4"
 
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(gif_url) as resp:
-                        resp.raise_for_status()
-                        content = await resp.read()
-                        with open(local_gif_path, "wb") as f:
-                            f.write(content)
-            except aiohttp.ClientError as e:
-                logger.error(f"下载 GIF 失败 ({gif_url}): {e}", exc_info=True)
-                await event.send(event.plain_result("抱歉，下载 GIF 时出错。"))
-                event.stop_event()
+                # 下载或复制GIF文件
+                if gif_url and gif_url.startswith(('http://', 'https://')):
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(gif_url) as resp:
+                            resp.raise_for_status()
+                            content = await resp.read()
+                            with open(local_gif_path, "wb") as f:
+                                f.write(content)
+                elif gif_file:
+                    # 如果是本地文件路径
+                    shutil.copy2(gif_file, local_gif_path)
+                else:
+                    logger.error(f"[{self.PLUGIN_NAME}] 无效的GIF源")
+                    return
+            except Exception as e:
+                logger.error(f"[{self.PLUGIN_NAME}] 处理GIF失败 ({gif_source}): {e}", exc_info=True)
                 return
 
             try:
                 await asyncio.to_thread(
                     _blocking_gif_to_mp4, str(local_gif_path), str(local_mp4_path)
                 )
+                logger.info(f"[{self.PLUGIN_NAME}] GIF转换成功: {local_mp4_path}")
+                
+                # 将转换后的视频添加到请求中
+                if not hasattr(req, 'image_urls'):
+                    req.image_urls = []
+                req.image_urls.append(str(local_mp4_path))
+                
+                # 从消息中移除GIF
+                if hasattr(req, 'prompt') and '[图片]' in req.prompt:
+                    req.prompt = req.prompt.replace('[图片]', '[视频(GIF已转换)]', 1)
+                
+                logger.info(f"[{self.PLUGIN_NAME}] 已将转换后的视频添加到请求中")
             except Exception as e:
-                logger.error(f"GIF 转换 MP4 失败: {e}", exc_info=True)
-                await event.send(event.plain_result("抱歉，处理 GIF 时出错。"))
-                event.stop_event()
+                logger.error(f"[{self.PLUGIN_NAME}] GIF转换失败: {e}", exc_info=True)
                 return
-
-            # 4. 发送视频并中断事件
-            await event.send(
-                event.chain_result([Comp.Video.fromFileSystem(str(local_mp4_path))])
-            )
-            event.stop_event()
