@@ -29,7 +29,7 @@ def setup_module_mocks(mocker):
     mock_astrbot.api.star.Star = object
     mock_astrbot.api.star.register = lambda *args: lambda cls: cls
     mock_astrbot.api.message_components = Mock()
-    
+
     mocker.patch.dict(sys.modules, {
         "astrbot": mock_astrbot,
         "astrbot.api": mock_astrbot.api,
@@ -38,7 +38,7 @@ def setup_module_mocks(mocker):
         "astrbot.api.star": mock_astrbot.api.star,
         "astrbot.api.message_components": mock_astrbot.api.message_components,
     })
-    
+
     # Mock moviepy to avoid heavy dependencies
     class MockVideoFileClip:
         def __init__(self, path):
@@ -54,16 +54,16 @@ def setup_module_mocks(mocker):
 
         def __exit__(self, exc_type, exc_val, exc_tb):
             pass
-    
+
     mock_moviepy = Mock()
     mock_moviepy.editor = Mock()
     mock_moviepy.editor.VideoFileClip = MockVideoFileClip
-    
+
     mocker.patch.dict(sys.modules, {
         "moviepy": mock_moviepy,
         "moviepy.editor": mock_moviepy.editor,
     })
-    
+
     # Mock aiohttp
     class MockClientSession:
         async def __aenter__(self):
@@ -77,14 +77,14 @@ def setup_module_mocks(mocker):
             mock_response.raise_for_status = AsyncMock()
             mock_response.read = AsyncMock(return_value=b"dummy gif content")
             return mock_response
-    
+
     mock_aiohttp = Mock()
     mock_aiohttp.ClientSession = MockClientSession
-    
+
     mocker.patch.dict(sys.modules, {
         "aiohttp": mock_aiohttp,
     })
-    
+
     # Now import the plugin after all mocks are in place
     try:
         from main import GifToVideoPlugin, _blocking_gif_to_mp4
@@ -200,7 +200,7 @@ class TestGifToVideoPlugin:
         # Create a real temporary GIF file
         gif_file_path = tmp_path / "test.gif"
         gif_file_path.write_bytes(b"dummy_gif_content")
-        
+
         # Mock message components with GIF
         mock_image = Mock()
         mock_image.file = str(gif_file_path)

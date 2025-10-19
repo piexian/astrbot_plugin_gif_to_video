@@ -87,13 +87,13 @@ class GifToVideoPlugin(Star):
         """通过服务商实例获取其ID。"""
         if not provider_inst:
             return None
-        
+
         provider_map = {}
         if hasattr(self.context.provider_manager, "inst_map"):
             provider_map = self.context.provider_manager.inst_map
         elif hasattr(self.context.provider_manager, "get_all_providers"):
             provider_map = self.context.provider_manager.get_all_providers()
-        
+
         for p_id, p_inst in provider_map.items():
             if p_inst is provider_inst:
                 return p_id
