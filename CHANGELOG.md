@@ -5,6 +5,19 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.0.4] - 2025-10-19
+
+### 修复
+- 修复了 MoviePy 2.2.1+ 版本兼容性问题
+- 解决了 `TypeError: got an unexpected keyword argument 'verbose'` 错误
+- 实现了自适应版本兼容机制，优先使用新版本参数，失败时回退到旧版本参数
+- 增强了插件对不同 MoviePy 版本的兼容性
+
+### 改进
+- 改进了错误处理机制，提供更详细的版本兼容性日志
+- 优化了 GIF 转换流程，提高稳定性
+- 确保插件在 MoviePy 1.0.3 到 2.2.1+ 版本范围内都能正常工作
+
 ## [2.0.3] - 2025-10-19
 
 ### 修复
@@ -68,6 +81,7 @@
 - 临时文件自动清理
 - 详细的日志记录
 
+[2.0.4]: https://github.com/piexian/astrbot_plugin_gif_to_video/compare/v2.0.3...v2.0.4
 [2.0.3]: https://github.com/piexian/astrbot_plugin_gif_to_video/compare/v2.0.2...v2.0.3
 [2.0.2]: https://github.com/piexian/astrbot_plugin_gif_to_video/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/piexian/astrbot_plugin_gif_to_video/compare/v2.0.0...v2.0.1

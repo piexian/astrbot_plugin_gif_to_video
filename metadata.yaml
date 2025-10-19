@@ -1,7 +1,7 @@
 name: astrbot_plugin_gif_to_video
 author: 氕氙
 description: GIF转视频分析插件，自动为默认服务商或手动指定的服务商启用GIF转视频避免报错。
-version: "2.0.3"
+version: "2.0.4"
 repo: https://github.com/piexian/astrbot_plugin_gif_to_video
 requirements:
   - moviepy>=1.0.3

@@ -27,22 +27,38 @@ def _blocking_gif_to_mp4(input_path: str, output_path: str):
     # 对于某些 GIF，MoviePy 可能无法正确读取 fps，这里提供默认值 15。
     with VideoFileClip(input_path) as clip:
         fps = clip.fps if clip.fps is not None else 15
-        clip.write_videofile(
-            output_path,
-            codec="libx264",
-            preset="ultrafast",
-            audio=False,
-            fps=fps,
-            verbose=False,
-            logger=None,
-        )
+        try:
+            # 尝试使用新版本 MoviePy 的参数（不包含 verbose 和 logger）
+            clip.write_videofile(
+                output_path,
+                codec="libx264",
+                preset="ultrafast",
+                audio=False,
+                fps=fps,
+            )
+        except TypeError as e:
+            if "verbose" in str(e):
+                # 如果仍然报错 verbose 参数问题，尝试使用旧版本参数
+                logger.warning(f"[astrbot_plugin_gif_to_video] MoviePy 版本兼容性问题，尝试使用旧参数: {e}")
+                clip.write_videofile(
+                    output_path,
+                    codec="libx264",
+                    preset="ultrafast",
+                    audio=False,
+                    fps=fps,
+                    verbose=False,
+                    logger=None,
+                )
+            else:
+                # 如果是其他参数错误，直接抛出
+                raise
 
 
 @register(
     "astrbot_plugin_gif_to_video",
     "氕氙",
     "GIF转视频分析插件，自动为默认服务商或手动指定的服务商启用GIF转视频避免报错。",
-    "2.0.3",
+    "2.0.4",
     "https://github.com/piexian/astrbot_plugin_gif_to_video",
 )
 class GifToVideoPlugin(Star):

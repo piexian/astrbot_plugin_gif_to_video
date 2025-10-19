@@ -124,6 +124,12 @@ pytest -q
 
 ## 📝 更新日志
 
+### v2.0.4
+- **修复了 MoviePy 2.2.1+ 版本兼容性问题**
+- **解决了 `TypeError: got an unexpected keyword argument 'verbose'` 错误**
+- **实现了自适应版本兼容机制，优先使用新版本参数，失败时回退到旧版本参数**
+- **增强了插件对不同 MoviePy 版本的兼容性**
+
 ### v2.0.3
 - **代码质量提升**：基于AI代码审核报告进行了全面改进
 - **消除重复代码**：重构了获取服务商ID的逻辑，创建了`_get_provider_id_by_instance()`辅助方法
