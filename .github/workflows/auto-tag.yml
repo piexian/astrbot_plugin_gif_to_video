@@ -5,22 +5,17 @@ on:
     branches: [ master, main ]
     paths:
       - 'metadata.yaml'
-      - 'main.py'
 
 jobs:
   auto-tag:
     runs-on: ubuntu-latest
+    container: python:3.11-slim
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         fetch-depth: 0  # 获取完整历史记录以便比较
-        
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.x'
         
     - name: Install PyYAML
       run: pip install PyYAML
@@ -29,27 +24,6 @@ jobs:
       id: get-version
       run: |
         python3 -c "import yaml; f=open('metadata.yaml', 'r'); data=yaml.safe_load(f); f.close(); version=data.get('version', ''); print(f'VERSION={version}') if version else None" >> $GITHUB_OUTPUT
-        
-    - name: Extract version from main.py
-      id: get-version-main
-      run: |
-        python3 -c "
-import re
-with open('main.py', 'r') as f:
-    content = f.read()
-# 查找@register装饰器中的版本号（第4个参数）
-match = re.search(r'@register\([^,]*,[^,]*,[^,]*,[[:space:]]*\"([^\"]+)\"[^)]*\)', content)
-if match:
-    version = match.group(1)
-    print(f'VERSION={version}')
-" >> $GITHUB_OUTPUT
-        
-    - name: Check if versions match
-      run: |
-        if [ '${{ steps.get-version.outputs.VERSION }}' != '${{ steps.get-version-main.outputs.VERSION }}' ]; then
-          echo "Version mismatch between metadata.yaml and main.py"
-          exit 1
-        fi
         
     - name: Check if tag already exists
       id: check-tag
@@ -71,44 +45,20 @@ if match:
         git tag -a "v$VERSION" -m "v$VERSION: 自动发布版本"
         git push origin "v$VERSION"
         
-    - name: Read Release Announcement
-      if: steps.check-tag.outputs.exists == 'false'
-      id: read-announcement
-      run: |
-        VERSION="${{ steps.get-version.outputs.VERSION }}"
-        ANNOUNCEMENT_FILE="releases/RELEASE_ANNOUNCEMENT_v${VERSION}.md"
-        
-        if [ -f "$ANNOUNCEMENT_FILE" ]; then
-          echo "Found announcement file: $ANNOUNCEMENT_FILE"
-          # 读取文件内容并转换为GitHub Release格式
-          # 使用base64编码来处理多行内容
-          ANNOUNCEMENT_CONTENT=$(cat "$ANNOUNCEMENT_FILE" | base64 -w 0)
-          echo "announcement<<EOF" >> $GITHUB_OUTPUT
-          echo "$ANNOUNCEMENT_CONTENT" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-        else
-          echo "No announcement file found for version $VERSION, using default template"
-          echo "announcement<<EOF" >> $GITHUB_OUTPUT
-          echo "## v${VERSION} 发布" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "此版本由GitHub Actions自动发布。" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "### 主要更新" >> $GITHUB_OUTPUT
-          echo "- 代码质量提升和bug修复" >> $GITHUB_OUTPUT
-          echo "- 优化测试代码" >> $GITHUB_OUTPUT
-          echo "- 通过ruff代码检查" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "查看CHANGELOG.md了解详细信息。" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-        fi
-        
     - name: Create Release
       if: steps.check-tag.outputs.exists == 'false'
       uses: softprops/action-gh-release@v1
       with:
         tag_name: v${{ steps.get-version.outputs.VERSION }}
         name: v${{ steps.get-version.outputs.VERSION }}
-        body: ${{ steps.read-announcement.outputs.announcement }}
+        body: |
+          # AstrBot GIF转视频插件 v${{ steps.get-version.outputs.VERSION }} 发布
+          
+          ## 🎉 版本更新
+          
+          AstrBot GIF转视频插件 v${{ steps.get-version.outputs.VERSION }} 现已发布！
+          
+
         draft: false
         prerelease: false
       env:
