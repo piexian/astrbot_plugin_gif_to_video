@@ -5,6 +5,21 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.0.6] - 2025-10-19
+
+### 修复
+- 修复数据持久化问题，使用框架提供的StarTools.get_data_dir()替代硬编码的临时目录
+- 改进资源管理，在handle_gif_message中使用try...finally确保临时文件清理
+- 修复代码质量问题，将terminate方法改为同步方法
+- 优化可维护性，减少与provider_manager内部实现的耦合
+- 移除重复的测试代码，整合测试用例到test_conversion.py
+
+### 改进
+- 使用框架提供的稳定API获取provider信息，提高代码健壮性
+- 增强临时文件清理机制，确保每次请求后立即清理资源
+- 改进错误处理和日志记录，提供更好的调试信息
+- 优化测试结构，消除重复测试代码
+
 ## [2.0.5] - 2025-10-19
 
 ### 修复
@@ -98,6 +113,7 @@
 - 临时文件自动清理
 - 详细的日志记录
 
+[2.0.6]: https://github.com/piexian/astrbot_plugin_gif_to_video/compare/v2.0.5...v2.0.6
 [2.0.5]: https://github.com/piexian/astrbot_plugin_gif_to_video/compare/v2.0.4...v2.0.5
 [2.0.4]: https://github.com/piexian/astrbot_plugin_gif_to_video/compare/v2.0.3...v2.0.4
 [2.0.3]: https://github.com/piexian/astrbot_plugin_gif_to_video/compare/v2.0.2...v2.0.3

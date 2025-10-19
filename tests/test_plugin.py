@@ -2,8 +2,6 @@
 
 import sys
 import pytest
-import tempfile
-import shutil
 from pathlib import Path
 from unittest.mock import Mock, patch, AsyncMock
 
@@ -30,14 +28,17 @@ def setup_module_mocks(mocker):
     mock_astrbot.api.star.register = lambda *args: lambda cls: cls
     mock_astrbot.api.message_components = Mock()
 
-    mocker.patch.dict(sys.modules, {
-        "astrbot": mock_astrbot,
-        "astrbot.api": mock_astrbot.api,
-        "astrbot.api.event": mock_astrbot.api.event,
-        "astrbot.api.event.filter": mock_astrbot.api.event.filter,
-        "astrbot.api.star": mock_astrbot.api.star,
-        "astrbot.api.message_components": mock_astrbot.api.message_components,
-    })
+    mocker.patch.dict(
+        sys.modules,
+        {
+            "astrbot": mock_astrbot,
+            "astrbot.api": mock_astrbot.api,
+            "astrbot.api.event": mock_astrbot.api.event,
+            "astrbot.api.event.filter": mock_astrbot.api.event.filter,
+            "astrbot.api.star": mock_astrbot.api.star,
+            "astrbot.api.message_components": mock_astrbot.api.message_components,
+        },
+    )
 
     # Mock moviepy to avoid heavy dependencies
     class MockVideoFileClip:
@@ -59,10 +60,13 @@ def setup_module_mocks(mocker):
     mock_moviepy.editor = Mock()
     mock_moviepy.editor.VideoFileClip = MockVideoFileClip
 
-    mocker.patch.dict(sys.modules, {
-        "moviepy": mock_moviepy,
-        "moviepy.editor": mock_moviepy.editor,
-    })
+    mocker.patch.dict(
+        sys.modules,
+        {
+            "moviepy": mock_moviepy,
+            "moviepy.editor": mock_moviepy.editor,
+        },
+    )
 
     # Mock aiohttp
     class MockClientSession:
@@ -81,13 +85,17 @@ def setup_module_mocks(mocker):
     mock_aiohttp = Mock()
     mock_aiohttp.ClientSession = MockClientSession
 
-    mocker.patch.dict(sys.modules, {
-        "aiohttp": mock_aiohttp,
-    })
+    mocker.patch.dict(
+        sys.modules,
+        {
+            "aiohttp": mock_aiohttp,
+        },
+    )
 
     # Now import the plugin after all mocks are in place
     try:
         from main import GifToVideoPlugin, _blocking_gif_to_mp4
+
         return GifToVideoPlugin, _blocking_gif_to_mp4
     except ImportError as e:
         pytest.skip(f"Cannot import plugin: {e}", allow_module_level=True)
@@ -142,7 +150,9 @@ class TestGifToVideoPlugin:
         assert plugin.ffmpeg_available is True
         assert plugin.config.get("enabled_provider_id") == "test_provider"
 
-    def test_plugin_initialization_no_ffmpeg(self, mock_context, mock_config, setup_module_mocks):
+    def test_plugin_initialization_no_ffmpeg(
+        self, mock_context, mock_config, setup_module_mocks
+    ):
         """Test plugin initialization when FFmpeg is not available."""
         GifToVideoPlugin, _ = setup_module_mocks
         with patch("shutil.which", return_value=None):
@@ -218,9 +228,7 @@ class TestGifToVideoPlugin:
             with patch.object(
                 plugin, "_get_default_provider_id", return_value="openai"
             ):
-                result = await plugin.handle_gif_message(
-                    mock_event, mock_request
-                )
+                result = await plugin.handle_gif_message(mock_event, mock_request)
 
         # Should process the GIF
         assert result is None

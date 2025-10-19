@@ -42,7 +42,9 @@ def _blocking_gif_to_mp4(input_path: str, output_path: str):
         except TypeError as e:
             if "verbose" in str(e):
                 # 如果仍然报错 verbose 参数问题，尝试使用旧版本参数
-                logger.warning(f"[astrbot_plugin_gif_to_video] MoviePy 版本兼容性问题，尝试使用旧参数: {e}")
+                logger.warning(
+                    f"[astrbot_plugin_gif_to_video] MoviePy 版本兼容性问题，尝试使用旧参数: {e}"
+                )
                 clip.write_videofile(
                     output_path,
                     codec="libx264",
@@ -61,7 +63,7 @@ def _blocking_gif_to_mp4(input_path: str, output_path: str):
     "astrbot_plugin_gif_to_video",
     "氕氙",
     "GIF转视频分析插件，自动为默认服务商或手动指定的服务商启用GIF转视频避免报错。",
-    "2.0.5",
+    "2.0.6",
     "https://github.com/piexian/astrbot_plugin_gif_to_video",
 )
 class GifToVideoPlugin(Star):
@@ -80,7 +82,9 @@ class GifToVideoPlugin(Star):
         self.ffmpeg_available = False
         self._temp_files = set()  # 跟踪临时文件
         self._temp_files_lock = threading.Lock()  # 线程安全锁
-        self._cache_dir = StarTools.get_data_dir(self.PLUGIN_NAME) / "cache"  # 使用框架提供的数据目录
+        self._cache_dir = (
+            StarTools.get_data_dir(self.PLUGIN_NAME) / "cache"
+        )  # 使用框架提供的数据目录
         self._cache_dir.mkdir(parents=True, exist_ok=True)  # 确保缓存目录存在
 
         # 在插件加载时检查 FFmpeg 是否存在
@@ -114,24 +118,29 @@ class GifToVideoPlugin(Star):
         try:
             # 首先尝试使用框架提供的稳定API获取所有providers
             all_providers = self.context.get_all_providers()
-            
+
             # 遍历所有providers，寻找匹配的实例
             for provider in all_providers:
                 if provider is provider_inst:
                     # 假设provider对象有id属性
-                    return getattr(provider, 'id', None)
-            
+                    return getattr(provider, "id", None)
+
             # 如果直接比较失败，尝试通过其他属性匹配
             for provider in all_providers:
                 # 比较provider的name属性
-                if (hasattr(provider, 'name') and hasattr(provider_inst, 'name') and
-                    provider.name == provider_inst.name):
-                    return getattr(provider, 'id', None)
-            
+                if (
+                    hasattr(provider, "name")
+                    and hasattr(provider_inst, "name")
+                    and provider.name == provider_inst.name
+                ):
+                    return getattr(provider, "id", None)
+
             logger.warning(f"[{self.PLUGIN_NAME}] 无法为provider实例找到匹配的ID")
             return None
         except Exception as e:
-            logger.error(f"[{self.PLUGIN_NAME}] 获取provider ID时出错: {e}", exc_info=True)
+            logger.error(
+                f"[{self.PLUGIN_NAME}] 获取provider ID时出错: {e}", exc_info=True
+            )
             return None
 
     def _get_default_provider_id(self) -> str | None:
@@ -139,16 +148,16 @@ class GifToVideoPlugin(Star):
         try:
             # 使用框架提供的API获取当前使用的provider
             curr_provider = self.context.get_using_provider()
-            
+
             if not curr_provider:
                 logger.warning(f"[{self.PLUGIN_NAME}] 无法获取当前使用的服务商实例。")
                 return None
 
             # 尝试直接获取provider的ID
-            provider_id = getattr(curr_provider, 'id', None)
+            provider_id = getattr(curr_provider, "id", None)
             if provider_id:
                 return provider_id
-            
+
             # 如果没有id属性，尝试通过实例匹配
             return self._get_provider_id_by_instance(curr_provider)
         except Exception as e:
@@ -170,9 +179,13 @@ class GifToVideoPlugin(Star):
                         parent_dir.rmdir()
                     self._temp_files.discard(temp_file)
                 except Exception as e:
-                    logger.warning(f"[{self.PLUGIN_NAME}] 清理临时文件失败 {temp_file}: {e}")
+                    logger.warning(
+                        f"[{self.PLUGIN_NAME}] 清理临时文件失败 {temp_file}: {e}"
+                    )
 
-    def _cleanup_request_temp_files(self, temp_dir: Path, gif_path: Path, mp4_path: Path):
+    def _cleanup_request_temp_files(
+        self, temp_dir: Path, gif_path: Path, mp4_path: Path
+    ):
         """清理单次请求创建的临时文件和目录"""
         for file_path in [gif_path, mp4_path, temp_dir]:
             try:
@@ -183,7 +196,9 @@ class GifToVideoPlugin(Star):
                         # 删除目录及其内容
                         shutil.rmtree(file_path, ignore_errors=True)
             except Exception as e:
-                logger.warning(f"[{self.PLUGIN_NAME}] 清理请求临时文件失败 {file_path}: {e}")
+                logger.warning(
+                    f"[{self.PLUGIN_NAME}] 清理请求临时文件失败 {file_path}: {e}"
+                )
 
     def _register_temp_file(self, file_path: Path):
         """注册临时文件以便后续清理"""
@@ -200,7 +215,9 @@ class GifToVideoPlugin(Star):
                     file_mtime = cache_file.stat().st_mtime
                     if current_time - file_mtime > 86400:  # 24小时 = 86400秒
                         cache_file.unlink()
-                        logger.debug(f"[{self.PLUGIN_NAME}] 清理过期缓存文件: {cache_file}")
+                        logger.debug(
+                            f"[{self.PLUGIN_NAME}] 清理过期缓存文件: {cache_file}"
+                        )
         except Exception as e:
             logger.warning(f"[{self.PLUGIN_NAME}] 清理过期缓存失败: {e}")
 
@@ -288,7 +305,7 @@ class GifToVideoPlugin(Star):
             )
             if provider_inst:
                 # 尝试直接获取provider的ID
-                provider_id = getattr(provider_inst, 'id', None)
+                provider_id = getattr(provider_inst, "id", None)
                 if not provider_id:
                     # 如果没有id属性，尝试通过实例匹配
                     provider_id = self._get_provider_id_by_instance(provider_inst)
@@ -331,7 +348,9 @@ class GifToVideoPlugin(Star):
 
             # 从消息对象中移除原始的GIF图片组件
             for i, comp in enumerate(event.message_obj.message):
-                if isinstance(comp, Comp.Image) and (comp.file == gif_file or comp.url == gif_url):
+                if isinstance(comp, Comp.Image) and (
+                    comp.file == gif_file or comp.url == gif_url
+                ):
                     event.message_obj.message.pop(i)
                     break
 
@@ -387,7 +406,9 @@ class GifToVideoPlugin(Star):
 
                 # 从消息对象中移除原始的GIF图片组件
                 for i, comp in enumerate(event.message_obj.message):
-                    if isinstance(comp, Comp.Image) and (comp.file == gif_file or comp.url == gif_url):
+                    if isinstance(comp, Comp.Image) and (
+                        comp.file == gif_file or comp.url == gif_url
+                    ):
                         event.message_obj.message.pop(i)
                         break
 
@@ -400,7 +421,9 @@ class GifToVideoPlugin(Star):
                 if hasattr(req, "prompt") and "[图片]" in req.prompt:
                     req.prompt = req.prompt.replace("[图片]", "[视频(GIF已转换)]", 1)
 
-                logger.info(f"[{self.PLUGIN_NAME}] 已将转换后的视频添加到请求中，并移除了原始GIF")
+                logger.info(
+                    f"[{self.PLUGIN_NAME}] 已将转换后的视频添加到请求中，并移除了原始GIF"
+                )
             except Exception as e:
                 logger.error(f"[{self.PLUGIN_NAME}] GIF转换失败: {e}", exc_info=True)
                 return

@@ -17,7 +17,9 @@ def test_gif_to_mp4_conversion(tmp_path):
     try:
         from main import _blocking_gif_to_mp4
     except ImportError:
-        pytest.skip("Cannot import _blocking_gif_to_mp4 function", allow_module_level=True)
+        pytest.skip(
+            "Cannot import _blocking_gif_to_mp4 function", allow_module_level=True
+        )
 
     # Create a tiny GIF file
     in_path = tmp_path / "in.gif"
