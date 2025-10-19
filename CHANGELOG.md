@@ -5,6 +5,17 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.0.8] - 2025-10-19
+
+### 修复
+- 修复获取provider_id的问题，移除get_using_provider()方法中不正确的umo参数
+- 添加异常处理，避免获取provider失败时插件崩溃
+- 将警告日志改为调试日志，减少日志噪音
+
+### 改进
+- 使用框架提供的正确API获取当前使用的provider
+- 提高插件在获取provider信息失败时的健壮性
+
 ## [2.0.7] - 2025-10-19
 
 ### 修复
