@@ -5,6 +5,23 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.0.5] - 2025-10-19
+
+### 修复
+- 修复了临时文件生命周期管理问题，解决了 `FileNotFoundError` 错误
+- 实现了智能缓存机制，转换后的视频文件会缓存24小时
+- 修复了因临时目录过早删除导致的文件访问失败问题
+
+### 新增
+- 添加了基于MD5哈希的缓存系统，相同GIF文件只需转换一次
+- 实现了自动过期缓存清理机制，避免磁盘空间浪费
+- 缓存文件保存24小时，提高重复请求的响应速度
+
+### 改进
+- 优化了临时文件管理，使用持久化临时目录
+- 改进了缓存命中时的处理逻辑，提高效率
+- 增强了文件生命周期管理，确保文件在需要时始终可用
+
 ## [2.0.4] - 2025-10-19
 
 ### 修复
@@ -81,6 +98,7 @@
 - 临时文件自动清理
 - 详细的日志记录
 
+[2.0.5]: https://github.com/piexian/astrbot_plugin_gif_to_video/compare/v2.0.4...v2.0.5
 [2.0.4]: https://github.com/piexian/astrbot_plugin_gif_to_video/compare/v2.0.3...v2.0.4
 [2.0.3]: https://github.com/piexian/astrbot_plugin_gif_to_video/compare/v2.0.2...v2.0.3
 [2.0.2]: https://github.com/piexian/astrbot_plugin_gif_to_video/compare/v2.0.1...v2.0.2

@@ -2,6 +2,9 @@ import asyncio
 import shutil
 import tempfile
 from pathlib import Path
+import threading
+import time
+import hashlib
 
 import aiohttp
 
@@ -58,7 +61,7 @@ def _blocking_gif_to_mp4(input_path: str, output_path: str):
     "astrbot_plugin_gif_to_video",
     "氕氙",
     "GIF转视频分析插件，自动为默认服务商或手动指定的服务商启用GIF转视频避免报错。",
-    "2.0.4",
+    "2.0.5",
     "https://github.com/piexian/astrbot_plugin_gif_to_video",
 )
 class GifToVideoPlugin(Star):
@@ -75,6 +78,10 @@ class GifToVideoPlugin(Star):
         self.config = config
         self.default_provider_id = None
         self.ffmpeg_available = False
+        self._temp_files = set()  # 跟踪临时文件
+        self._temp_files_lock = threading.Lock()  # 线程安全锁
+        self._cache_dir = Path(tempfile.gettempdir()) / "astrbot_gif_cache"  # 缓存目录
+        self._cache_dir.mkdir(exist_ok=True)  # 确保缓存目录存在
 
         # 在插件加载时检查 FFmpeg 是否存在
         if shutil.which("ffmpeg") is None:
@@ -133,9 +140,80 @@ class GifToVideoPlugin(Star):
             )
             return None
 
+    def _cleanup_temp_files(self):
+        """清理所有临时文件"""
+        with self._temp_files_lock:
+            for temp_file in list(self._temp_files):
+                try:
+                    if temp_file.exists():
+                        temp_file.unlink()
+                    # 尝试删除父目录（如果为空）
+                    parent_dir = temp_file.parent
+                    if parent_dir.exists() and not any(parent_dir.iterdir()):
+                        parent_dir.rmdir()
+                    self._temp_files.discard(temp_file)
+                except Exception as e:
+                    logger.warning(f"[{self.PLUGIN_NAME}] 清理临时文件失败 {temp_file}: {e}")
+
+    def _register_temp_file(self, file_path: Path):
+        """注册临时文件以便后续清理"""
+        with self._temp_files_lock:
+            self._temp_files.add(file_path)
+
+    def _cleanup_expired_cache(self):
+        """清理过期的缓存文件（超过24小时）"""
+        try:
+            current_time = time.time()
+            for cache_file in self._cache_dir.glob("*.mp4"):
+                if cache_file.is_file():
+                    # 检查文件修改时间
+                    file_mtime = cache_file.stat().st_mtime
+                    if current_time - file_mtime > 86400:  # 24小时 = 86400秒
+                        cache_file.unlink()
+                        logger.debug(f"[{self.PLUGIN_NAME}] 清理过期缓存文件: {cache_file}")
+        except Exception as e:
+            logger.warning(f"[{self.PLUGIN_NAME}] 清理过期缓存失败: {e}")
+
+    def _get_cache_key(self, gif_source: str) -> str:
+        """根据GIF源生成缓存键"""
+        # 使用MD5哈希作为缓存键
+        return hashlib.md5(gif_source.encode()).hexdigest()
+
+    def _get_cached_video_path(self, gif_source: str) -> Path | None:
+        """获取缓存的视频文件路径（如果存在且未过期）"""
+        cache_key = self._get_cache_key(gif_source)
+        cached_file = self._cache_dir / f"{cache_key}.mp4"
+
+        if cached_file.exists():
+            # 检查文件是否在24小时内
+            current_time = time.time()
+            file_mtime = cached_file.stat().st_mtime
+            if current_time - file_mtime <= 86400:  # 24小时内
+                logger.info(f"[{self.PLUGIN_NAME}] 使用缓存文件: {cached_file}")
+                return cached_file
+
+        return None
+
+    def _cache_video_file(self, gif_source: str, video_path: Path) -> Path:
+        """将转换后的视频文件缓存"""
+        cache_key = self._get_cache_key(gif_source)
+        cached_file = self._cache_dir / f"{cache_key}.mp4"
+
+        try:
+            # 复制文件到缓存目录
+            shutil.copy2(video_path, cached_file)
+            logger.info(f"[{self.PLUGIN_NAME}] 缓存视频文件: {cached_file}")
+            return cached_file
+        except Exception as e:
+            logger.warning(f"[{self.PLUGIN_NAME}] 缓存视频文件失败: {e}")
+            return video_path  # 如果缓存失败，返回原路径
+
     async def terminate(self):
         """插件终止时调用，释放资源"""
-        logger.info(f"[{self.PLUGIN_NAME}] 插件已终止")
+        logger.info(f"[{self.PLUGIN_NAME}] 插件已终止，清理临时文件")
+        self._cleanup_temp_files()
+        # 可选：在插件终止时清理过期缓存
+        # self._cleanup_expired_cache()
 
     @filter.on_llm_request(priority=100)
     async def handle_gif_message(self, event: AstrMessageEvent, req):
@@ -210,55 +288,90 @@ class GifToVideoPlugin(Star):
         # 确定GIF源
         gif_source = gif_url if gif_url else gif_file
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            local_gif_path = temp_path / "input.gif"
-            local_mp4_path = temp_path / "output.mp4"
+        # 首先检查缓存
+        cached_video = self._get_cached_video_path(gif_source)
+        if cached_video:
+            # 使用缓存的文件
+            video_path = cached_video
 
-            try:
-                # 下载或复制GIF文件
-                if gif_url and gif_url.startswith(("http://", "https://")):
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get(gif_url) as resp:
-                            resp.raise_for_status()
-                            content = await resp.read()
-                            with open(local_gif_path, "wb") as f:
-                                f.write(content)
-                elif gif_file:
-                    # 如果是本地文件路径
-                    shutil.copy2(gif_file, local_gif_path)
-                else:
-                    logger.error(f"[{self.PLUGIN_NAME}] 无效的GIF源")
-                    return
-            except Exception as e:
-                logger.error(
-                    f"[{self.PLUGIN_NAME}] 处理GIF失败 ({gif_source}): {e}",
-                    exc_info=True,
-                )
+            # 从消息对象中移除原始的GIF图片组件
+            for i, comp in enumerate(event.message_obj.message):
+                if isinstance(comp, Comp.Image) and (comp.file == gif_file or comp.url == gif_url):
+                    event.message_obj.message.pop(i)
+                    break
+
+            # 将转换后的视频添加到请求中
+            if not hasattr(req, "image_urls"):
+                req.image_urls = []
+            req.image_urls.append(str(video_path))
+
+            # 从消息中移除GIF
+            if hasattr(req, "prompt") and "[图片]" in req.prompt:
+                req.prompt = req.prompt.replace("[图片]", "[视频(GIF已转换，缓存)]", 1)
+
+            logger.info(f"[{self.PLUGIN_NAME}] 使用缓存视频，已添加到请求中")
+            return
+
+        # 定期清理过期缓存（每次转换前检查一次）
+        self._cleanup_expired_cache()
+
+        # 创建持久化的临时目录，不会在with块结束时自动删除
+        temp_dir = Path(tempfile.mkdtemp(prefix="astrbot_gif_convert_"))
+        local_gif_path = temp_dir / "input.gif"
+        local_mp4_path = temp_dir / "output.mp4"
+
+        # 注册临时文件以便后续清理
+        self._register_temp_file(local_gif_path)
+        self._register_temp_file(local_mp4_path)
+        self._register_temp_file(temp_dir)
+
+        try:
+            # 下载或复制GIF文件
+            if gif_url and gif_url.startswith(("http://", "https://")):
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(gif_url) as resp:
+                        resp.raise_for_status()
+                        content = await resp.read()
+                        with open(local_gif_path, "wb") as f:
+                            f.write(content)
+            elif gif_file:
+                # 如果是本地文件路径
+                shutil.copy2(gif_file, local_gif_path)
+            else:
+                logger.error(f"[{self.PLUGIN_NAME}] 无效的GIF源")
                 return
+        except Exception as e:
+            logger.error(
+                f"[{self.PLUGIN_NAME}] 处理GIF失败 ({gif_source}): {e}",
+                exc_info=True,
+            )
+            return
 
-            try:
-                await asyncio.to_thread(
-                    _blocking_gif_to_mp4, str(local_gif_path), str(local_mp4_path)
-                )
-                logger.info(f"[{self.PLUGIN_NAME}] GIF转换成功: {local_mp4_path}")
+        try:
+            await asyncio.to_thread(
+                _blocking_gif_to_mp4, str(local_gif_path), str(local_mp4_path)
+            )
+            logger.info(f"[{self.PLUGIN_NAME}] GIF转换成功: {local_mp4_path}")
 
-                # 从消息对象中移除原始的GIF图片组件
-                for i, comp in enumerate(event.message_obj.message):
-                    if isinstance(comp, Comp.Image) and (comp.file == gif_file or comp.url == gif_url):
-                        event.message_obj.message.pop(i)
-                        break
+            # 缓存转换后的视频文件
+            video_path = self._cache_video_file(gif_source, local_mp4_path)
 
-                # 将转换后的视频添加到请求中
-                if not hasattr(req, "image_urls"):
-                    req.image_urls = []
-                req.image_urls.append(str(local_mp4_path))
+            # 从消息对象中移除原始的GIF图片组件
+            for i, comp in enumerate(event.message_obj.message):
+                if isinstance(comp, Comp.Image) and (comp.file == gif_file or comp.url == gif_url):
+                    event.message_obj.message.pop(i)
+                    break
 
-                # 从消息中移除GIF
-                if hasattr(req, "prompt") and "[图片]" in req.prompt:
-                    req.prompt = req.prompt.replace("[图片]", "[视频(GIF已转换)]", 1)
+            # 将转换后的视频添加到请求中
+            if not hasattr(req, "image_urls"):
+                req.image_urls = []
+            req.image_urls.append(str(video_path))
 
-                logger.info(f"[{self.PLUGIN_NAME}] 已将转换后的视频添加到请求中，并移除了原始GIF")
-            except Exception as e:
-                logger.error(f"[{self.PLUGIN_NAME}] GIF转换失败: {e}", exc_info=True)
-                return
+            # 从消息中移除GIF
+            if hasattr(req, "prompt") and "[图片]" in req.prompt:
+                req.prompt = req.prompt.replace("[图片]", "[视频(GIF已转换)]", 1)
+
+            logger.info(f"[{self.PLUGIN_NAME}] 已将转换后的视频添加到请求中，并移除了原始GIF")
+        except Exception as e:
+            logger.error(f"[{self.PLUGIN_NAME}] GIF转换失败: {e}", exc_info=True)
+            return
