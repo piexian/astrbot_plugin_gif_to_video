@@ -33,7 +33,16 @@ jobs:
     - name: Extract version from main.py
       id: get-version-main
       run: |
-        python3 -c "import re; f=open('main.py', 'r'); content=f.read(); f.close(); match=re.search(r'@register\([^)]*\"([^\"]+)\"[^)]*\)', content); version=match.group(1) if match else ''; print(f'VERSION={version}') if version else None" >> $GITHUB_OUTPUT
+        python3 -c "
+import re
+with open('main.py', 'r') as f:
+    content = f.read()
+# 查找@register装饰器中的版本号（第4个参数）
+match = re.search(r'@register\([^,]*,[^,]*,[^,]*,[[:space:]]*\"([^\"]+)\"[^)]*\)', content)
+if match:
+    version = match.group(1)
+    print(f'VERSION={version}')
+" >> $GITHUB_OUTPUT
         
     - name: Check if versions match
       run: |
