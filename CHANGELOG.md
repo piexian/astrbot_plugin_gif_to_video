@@ -5,6 +5,17 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.0.7] - 2025-10-19
+
+### 修复
+- 修复terminate方法兼容性问题，将方法从同步改回异步以满足框架期望
+- 解决'object NoneType can't be used in 'await' expression'错误
+- 更新测试文件以匹配异步方法调用
+
+### 改进
+- 保持方法内部执行同步操作，不包含任何await调用
+- 确保插件能够正常终止，避免插件运行不正常
+
 ## [2.0.6] - 2025-10-19
 
 ### 修复

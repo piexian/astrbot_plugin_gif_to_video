@@ -292,6 +292,6 @@ class TestGifToVideoPlugin:
     @pytest.mark.asyncio
     async def test_terminate(self, plugin):
         """Test plugin termination."""
-        # 注意：terminate方法现在是同步的
-        result = plugin.terminate()
+        # terminate方法是异步的，但内部执行同步操作
+        result = await plugin.terminate()
         assert result is None

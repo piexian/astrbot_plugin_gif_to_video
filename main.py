@@ -63,7 +63,7 @@ def _blocking_gif_to_mp4(input_path: str, output_path: str):
     "astrbot_plugin_gif_to_video",
     "氕氙",
     "GIF转视频分析插件，自动为默认服务商或手动指定的服务商启用GIF转视频避免报错。",
-    "2.0.6",
+    "2.0.7",
     "https://github.com/piexian/astrbot_plugin_gif_to_video",
 )
 class GifToVideoPlugin(Star):
@@ -255,7 +255,7 @@ class GifToVideoPlugin(Star):
             logger.warning(f"[{self.PLUGIN_NAME}] 缓存视频文件失败: {e}")
             return video_path  # 如果缓存失败，返回原路径
 
-    def terminate(self):
+    async def terminate(self):
         """插件终止时调用，释放资源"""
         logger.info(f"[{self.PLUGIN_NAME}] 插件已终止，清理临时文件")
         self._cleanup_temp_files()
