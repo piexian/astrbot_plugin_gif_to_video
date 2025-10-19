@@ -62,23 +62,44 @@ jobs:
         git tag -a "v$VERSION" -m "v$VERSION: 自动发布版本"
         git push origin "v$VERSION"
         
+    - name: Read Release Announcement
+      if: steps.check-tag.outputs.exists == 'false'
+      id: read-announcement
+      run: |
+        VERSION="${{ steps.get-version.outputs.VERSION }}"
+        ANNOUNCEMENT_FILE="releases/RELEASE_ANNOUNCEMENT_v${VERSION}.md"
+        
+        if [ -f "$ANNOUNCEMENT_FILE" ]; then
+          echo "Found announcement file: $ANNOUNCEMENT_FILE"
+          # 读取文件内容并转换为GitHub Release格式
+          # 使用base64编码来处理多行内容
+          ANNOUNCEMENT_CONTENT=$(cat "$ANNOUNCEMENT_FILE" | base64 -w 0)
+          echo "announcement<<EOF" >> $GITHUB_OUTPUT
+          echo "$ANNOUNCEMENT_CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        else
+          echo "No announcement file found for version $VERSION, using default template"
+          echo "announcement<<EOF" >> $GITHUB_OUTPUT
+          echo "## v${VERSION} 发布" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "此版本由GitHub Actions自动发布。" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "### 主要更新" >> $GITHUB_OUTPUT
+          echo "- 代码质量提升和bug修复" >> $GITHUB_OUTPUT
+          echo "- 优化测试代码" >> $GITHUB_OUTPUT
+          echo "- 通过ruff代码检查" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "查看CHANGELOG.md了解详细信息。" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        fi
+        
     - name: Create Release
       if: steps.check-tag.outputs.exists == 'false'
       uses: softprops/action-gh-release@v1
       with:
         tag_name: v${{ steps.get-version.outputs.VERSION }}
         name: v${{ steps.get-version.outputs.VERSION }}
-        body: |
-          ## v${{ steps.get-version.outputs.VERSION }} 发布
-          
-          此版本由GitHub Actions自动发布。
-          
-          ### 主要更新
-          - 代码质量提升和bug修复
-          - 优化测试代码
-          - 通过ruff代码检查
-          
-          查看CHANGELOG.md了解详细信息。
+        body: ${{ steps.read-announcement.outputs.announcement }}
         draft: false
         prerelease: false
       env:
