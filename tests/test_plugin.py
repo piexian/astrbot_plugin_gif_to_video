@@ -1,7 +1,6 @@
 """Tests for the GIF to Video plugin functionality."""
 
 import sys
-import types
 import pytest
 import tempfile
 import shutil
@@ -12,79 +11,86 @@ from unittest.mock import Mock, patch, AsyncMock
 plugin_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(plugin_dir))
 
-# Mock astrbot modules
 
-astrbot = types.ModuleType("astrbot")
-astrbot.api = types.ModuleType("astrbot.api")
-astrbot.api.AstrBotConfig = dict
-astrbot.api.logger = Mock()
-astrbot.api.event = types.ModuleType("astrbot.api.event")
-astrbot.api.event.filter = types.ModuleType("astrbot.api.event.filter")
-astrbot.api.event.AstrMessageEvent = object
-astrbot.api.star = types.ModuleType("astrbot.api.star")
-astrbot.api.star.Context = object
-astrbot.api.star.Star = object
-astrbot.api.star.register = lambda *args: lambda cls: cls
-astrbot.api.message_components = types.ModuleType("astrbot.api.message_components")
+# Setup module mocks using pytest fixtures for cleaner code
+@pytest.fixture(autouse=True)
+def setup_module_mocks(mocker):
+    """Setup all necessary module mocks for testing."""
+    # Mock astrbot modules
+    mock_astrbot = Mock()
+    mock_astrbot.api = Mock()
+    mock_astrbot.api.AstrBotConfig = dict
+    mock_astrbot.api.logger = Mock()
+    mock_astrbot.api.event = Mock()
+    mock_astrbot.api.event.filter = Mock()
+    mock_astrbot.api.event.AstrMessageEvent = object
+    mock_astrbot.api.star = Mock()
+    mock_astrbot.api.star.Context = object
+    mock_astrbot.api.star.Star = object
+    mock_astrbot.api.star.register = lambda *args: lambda cls: cls
+    mock_astrbot.api.message_components = Mock()
+    
+    mocker.patch.dict(sys.modules, {
+        "astrbot": mock_astrbot,
+        "astrbot.api": mock_astrbot.api,
+        "astrbot.api.event": mock_astrbot.api.event,
+        "astrbot.api.event.filter": mock_astrbot.api.event.filter,
+        "astrbot.api.star": mock_astrbot.api.star,
+        "astrbot.api.message_components": mock_astrbot.api.message_components,
+    })
+    
+    # Mock moviepy to avoid heavy dependencies
+    class MockVideoFileClip:
+        def __init__(self, path):
+            self.path = path
+            self.fps = 15
 
-sys.modules["astrbot"] = astrbot
-sys.modules["astrbot.api"] = astrbot.api
-sys.modules["astrbot.api.event"] = astrbot.api.event
-sys.modules["astrbot.api.event.filter"] = astrbot.api.event.filter
-sys.modules["astrbot.api.star"] = astrbot.api.star
-sys.modules["astrbot.api.message_components"] = astrbot.api.message_components
+        def write_videofile(self, output_path, **kwargs):
+            # Create a dummy file
+            Path(output_path).write_bytes(b"dummy video content")
 
-# Mock moviepy to avoid heavy dependencies
-moviepy = types.ModuleType("moviepy")
-moviepy.editor = types.ModuleType("moviepy.editor")
+        def __enter__(self):
+            return self
 
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+    
+    mock_moviepy = Mock()
+    mock_moviepy.editor = Mock()
+    mock_moviepy.editor.VideoFileClip = MockVideoFileClip
+    
+    mocker.patch.dict(sys.modules, {
+        "moviepy": mock_moviepy,
+        "moviepy.editor": mock_moviepy.editor,
+    })
+    
+    # Mock aiohttp
+    class MockClientSession:
+        async def __aenter__(self):
+            return self
 
-class MockVideoFileClip:
-    def __init__(self, path):
-        self.path = path
-        self.fps = 15
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
 
-    def write_videofile(self, output_path, **kwargs):
-        # Create a dummy file
-        Path(output_path).write_bytes(b"dummy video content")
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
-
-
-moviepy.editor.VideoFileClip = MockVideoFileClip
-sys.modules["moviepy"] = moviepy
-sys.modules["moviepy.editor"] = moviepy.editor
-
-# Mock aiohttp
-aiohttp = types.ModuleType("aiohttp")
-
-
-class MockClientSession:
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        pass
-
-    def get(self, url):
-        mock_response = Mock()
-        mock_response.raise_for_status = AsyncMock()
-        mock_response.read = AsyncMock(return_value=b"dummy gif content")
-        return mock_response
-
-
-aiohttp.ClientSession = MockClientSession
-sys.modules["aiohttp"] = aiohttp
-
-# Now import the plugin
-try:
-    from main import GifToVideoPlugin, _blocking_gif_to_mp4
-except ImportError as e:
-    pytest.skip(f"Cannot import plugin: {e}", allow_module_level=True)
+        def get(self, url):
+            mock_response = Mock()
+            mock_response.raise_for_status = AsyncMock()
+            mock_response.read = AsyncMock(return_value=b"dummy gif content")
+            return mock_response
+    
+    mock_aiohttp = Mock()
+    mock_aiohttp.ClientSession = MockClientSession
+    
+    mocker.patch.dict(sys.modules, {
+        "aiohttp": mock_aiohttp,
+    })
+    
+    # Now import the plugin after all mocks are in place
+    try:
+        from main import GifToVideoPlugin, _blocking_gif_to_mp4
+        return GifToVideoPlugin, _blocking_gif_to_mp4
+    except ImportError as e:
+        pytest.skip(f"Cannot import plugin: {e}", allow_module_level=True)
 
 
 class TestGifToVideoPlugin:
@@ -110,13 +116,15 @@ class TestGifToVideoPlugin:
         return {"enabled_provider_id": ""}
 
     @pytest.fixture
-    def plugin(self, mock_context, mock_config):
+    def plugin(self, mock_context, mock_config, setup_module_mocks):
         """Create a plugin instance."""
+        GifToVideoPlugin, _ = setup_module_mocks
         with patch("shutil.which", return_value="/usr/bin/ffmpeg"):
             return GifToVideoPlugin(mock_context, mock_config)
 
-    def test_plugin_initialization_auto_mode(self, mock_context):
+    def test_plugin_initialization_auto_mode(self, mock_context, setup_module_mocks):
         """Test plugin initialization in auto mode."""
+        GifToVideoPlugin, _ = setup_module_mocks
         config = {"enabled_provider_id": ""}
         with patch("shutil.which", return_value="/usr/bin/ffmpeg"):
             plugin = GifToVideoPlugin(mock_context, config)
@@ -124,8 +132,9 @@ class TestGifToVideoPlugin:
         assert plugin.ffmpeg_available is True
         assert plugin.default_provider_id == "openai"
 
-    def test_plugin_initialization_manual_mode(self, mock_context):
+    def test_plugin_initialization_manual_mode(self, mock_context, setup_module_mocks):
         """Test plugin initialization in manual mode."""
+        GifToVideoPlugin, _ = setup_module_mocks
         config = {"enabled_provider_id": "test_provider"}
         with patch("shutil.which", return_value="/usr/bin/ffmpeg"):
             plugin = GifToVideoPlugin(mock_context, config)
@@ -133,8 +142,9 @@ class TestGifToVideoPlugin:
         assert plugin.ffmpeg_available is True
         assert plugin.config.get("enabled_provider_id") == "test_provider"
 
-    def test_plugin_initialization_no_ffmpeg(self, mock_context, mock_config):
+    def test_plugin_initialization_no_ffmpeg(self, mock_context, mock_config, setup_module_mocks):
         """Test plugin initialization when FFmpeg is not available."""
+        GifToVideoPlugin, _ = setup_module_mocks
         with patch("shutil.which", return_value=None):
             plugin = GifToVideoPlugin(mock_context, mock_config)
 
@@ -185,11 +195,15 @@ class TestGifToVideoPlugin:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_handle_gif_message_with_gif_file(self, plugin):
+    async def test_handle_gif_message_with_gif_file(self, plugin, tmp_path):
         """Test handling message with GIF file."""
+        # Create a real temporary GIF file
+        gif_file_path = tmp_path / "test.gif"
+        gif_file_path.write_bytes(b"dummy_gif_content")
+        
         # Mock message components with GIF
         mock_image = Mock()
-        mock_image.file = "test.gif"
+        mock_image.file = str(gif_file_path)
         mock_image.url = "https://example.com/test.gif"
 
         mock_event = Mock()
@@ -201,14 +215,12 @@ class TestGifToVideoPlugin:
         mock_request.prompt = "测试消息 [图片]"
 
         with patch.object(plugin, "default_provider_id", "openai"):
-            with patch("pathlib.Path.exists", return_value=True):
-                with patch("shutil.copy2"):
-                    with patch.object(
-                        plugin, "_get_default_provider_id", return_value="openai"
-                    ):
-                        result = await plugin.handle_gif_message(
-                            mock_event, mock_request
-                        )
+            with patch.object(
+                plugin, "_get_default_provider_id", return_value="openai"
+            ):
+                result = await plugin.handle_gif_message(
+                    mock_event, mock_request
+                )
 
         # Should process the GIF
         assert result is None
@@ -233,19 +245,10 @@ class TestGifToVideoPlugin:
         mock_request.prompt = "测试消息 [图片]"
 
         with patch.object(plugin, "default_provider_id", "openai"):
-            with patch("aiohttp.ClientSession") as mock_session_class:
-                mock_session = Mock()
-                mock_response = Mock()
-                mock_response.raise_for_status = AsyncMock()
-                mock_response.read = AsyncMock(return_value=b"dummy gif content")
-                mock_session.get.return_value = mock_response
-                mock_session_class.return_value.__aenter__.return_value = mock_session
-                mock_session_class.return_value.__aexit__.return_value = None
-
-                with patch.object(
-                    plugin, "_get_default_provider_id", return_value="openai"
-                ):
-                    result = await plugin.handle_gif_message(mock_event, mock_request)
+            with patch.object(
+                plugin, "_get_default_provider_id", return_value="openai"
+            ):
+                result = await plugin.handle_gif_message(mock_event, mock_request)
 
         # Should process the GIF
         assert result is None
@@ -289,8 +292,9 @@ class TestGifConversion:
     """Test cases for the GIF conversion function."""
 
     @pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
-    def test_blocking_gif_to_mp4(self):
+    def test_blocking_gif_to_mp4(self, setup_module_mocks):
         """Test the blocking GIF to MP4 conversion function."""
+        _, _blocking_gif_to_mp4 = setup_module_mocks
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create a minimal GIF file
             gif_path = Path(temp_dir) / "test.gif"

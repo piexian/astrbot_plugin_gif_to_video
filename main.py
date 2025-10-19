@@ -42,7 +42,7 @@ def _blocking_gif_to_mp4(input_path: str, output_path: str):
     "astrbot_plugin_gif_to_video",
     "氕氙",
     "GIF转视频分析插件，自动为默认服务商或手动指定的服务商启用GIF转视频避免报错。",
-    "2.0.1",
+    "2.0.3",
     "https://github.com/piexian/astrbot_plugin_gif_to_video",
 )
 class GifToVideoPlugin(Star):
@@ -83,6 +83,22 @@ class GifToVideoPlugin(Star):
                     f"{self.PLUGIN_NAME} 已加载，运行在【自动模式】，默认服务商: {self.default_provider_id}"
                 )
 
+    def _get_provider_id_by_instance(self, provider_inst) -> str | None:
+        """通过服务商实例获取其ID。"""
+        if not provider_inst:
+            return None
+        
+        provider_map = {}
+        if hasattr(self.context.provider_manager, "inst_map"):
+            provider_map = self.context.provider_manager.inst_map
+        elif hasattr(self.context.provider_manager, "get_all_providers"):
+            provider_map = self.context.provider_manager.get_all_providers()
+        
+        for p_id, p_inst in provider_map.items():
+            if p_inst is provider_inst:
+                return p_id
+        return None
+
     def _get_default_provider_id(self) -> str | None:
         """通过匹配实例来获取当前默认的 LLM 服务商 ID。"""
         try:
@@ -91,27 +107,10 @@ class GifToVideoPlugin(Star):
                 logger.warning("无法从 provider_manager 获取到当前的服务商实例。")
                 return None
 
-            # 遍历所有服务商，通过匹配实例找到其 ID
-            # 使用 inst_map 字典以匹配实例 -> ID
-            if hasattr(self.context.provider_manager, "inst_map"):
-                for (
-                    provider_id,
-                    provider_inst,
-                ) in self.context.provider_manager.inst_map.items():
-                    if provider_inst is curr_provider:
-                        return provider_id
-            else:
-                # 如果没有 inst_map，尝试使用 get_all_providers 方法
-                if hasattr(self.context.provider_manager, "get_all_providers"):
-                    for (
-                        provider_id,
-                        provider_inst,
-                    ) in self.context.provider_manager.get_all_providers().items():
-                        if provider_inst is curr_provider:
-                            return provider_id
-
-            logger.warning("无法为当前服务商实例找到匹配的 ID。")
-            return None
+            provider_id = self._get_provider_id_by_instance(curr_provider)
+            if not provider_id:
+                logger.warning("无法为当前服务商实例找到匹配的 ID。")
+            return provider_id
         except Exception as e:
             logger.error(
                 f"通过 provider_manager 获取默认服务商 ID 时出错: {e}", exc_info=True
@@ -163,22 +162,7 @@ class GifToVideoPlugin(Star):
             provider_inst = self.context.get_using_provider(
                 umo=event.unified_msg_origin
             )
-            if provider_inst:
-                if hasattr(self.context.provider_manager, "inst_map"):
-                    for p_id, p_inst in self.context.provider_manager.inst_map.items():
-                        if p_inst is provider_inst:
-                            provider_id = p_id
-                            break
-                else:
-                    # 如果没有 inst_map，尝试使用 get_all_providers 方法
-                    if hasattr(self.context.provider_manager, "get_all_providers"):
-                        for (
-                            p_id,
-                            p_inst,
-                        ) in self.context.provider_manager.get_all_providers().items():
-                            if p_inst is provider_inst:
-                                provider_id = p_id
-                                break
+            provider_id = self._get_provider_id_by_instance(provider_inst)
 
         if not provider_id:
             logger.warning(f"[{self.PLUGIN_NAME}] 无法获取provider_id")
@@ -243,6 +227,12 @@ class GifToVideoPlugin(Star):
                 )
                 logger.info(f"[{self.PLUGIN_NAME}] GIF转换成功: {local_mp4_path}")
 
+                # 从消息对象中移除原始的GIF图片组件
+                for i, comp in enumerate(event.message_obj.message):
+                    if isinstance(comp, Comp.Image) and (comp.file == gif_file or comp.url == gif_url):
+                        event.message_obj.message.pop(i)
+                        break
+
                 # 将转换后的视频添加到请求中
                 if not hasattr(req, "image_urls"):
                     req.image_urls = []
@@ -252,7 +242,7 @@ class GifToVideoPlugin(Star):
                 if hasattr(req, "prompt") and "[图片]" in req.prompt:
                     req.prompt = req.prompt.replace("[图片]", "[视频(GIF已转换)]", 1)
 
-                logger.info(f"[{self.PLUGIN_NAME}] 已将转换后的视频添加到请求中")
+                logger.info(f"[{self.PLUGIN_NAME}] 已将转换后的视频添加到请求中，并移除了原始GIF")
             except Exception as e:
                 logger.error(f"[{self.PLUGIN_NAME}] GIF转换失败: {e}", exc_info=True)
                 return
