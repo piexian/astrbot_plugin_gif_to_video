@@ -45,20 +45,55 @@ jobs:
         git tag -a "v$VERSION" -m "v$VERSION: 自动发布版本"
         git push origin "v$VERSION"
         
+    - name: Read Changelog
+      if: steps.check-tag.outputs.exists == 'false'
+      id: read-changelog
+      run: |
+        VERSION="${{ steps.get-version.outputs.VERSION }}"
+        # 提取CHANGELOG.md中对应版本的更新日志
+        # 使用sed提取从"## [${VERSION}]"开始到下一个"## ["或文件结尾的内容
+        sed -n "/^## \[${VERSION}\]/,/^## \[/p" CHANGELOG.md | sed '$d' > changelog_${VERSION}.md
+        # 如果文件为空或不存在，使用默认消息
+        if [ ! -s "changelog_${VERSION}.md" ]; then
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "# AstrBot GIF转视频插件 v${VERSION} 发布" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "## 🎉 版本更新" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "AstrBot GIF转视频插件 v${VERSION} 现已发布！本次更新主要包含以下改进和修复。" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "查看CHANGELOG.md了解详细信息。" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        else
+          # 添加版本标题
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "# AstrBot GIF转视频插件 v${VERSION} 发布" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          cat "changelog_${VERSION}.md" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "## 📦 安装和更新" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "### 更新现有安装" >> $GITHUB_OUTPUT
+          echo "如果您已经安装了之前的版本，可以通过以下方式更新：" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "1. 在AstrBot WebUI的插件管理页面找到此插件" >> $GITHUB_OUTPUT
+          echo "2. 点击\"管理\" → \"重载插件\"" >> $GITHUB_OUTPUT
+          echo "3. 或者重新克隆/下载最新版本的插件" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "### 全新安装" >> $GITHUB_OUTPUT
+          echo "1. 下载最新版本的插件到AstrBot的plugins目录" >> $GITHUB_OUTPUT
+          echo "2. 确保已安装所有依赖（FFmpeg和Python包）" >> $GITHUB_OUTPUT
+          echo "3. 重启AstrBot或重载插件" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        fi
+        
     - name: Create Release
       if: steps.check-tag.outputs.exists == 'false'
       uses: softprops/action-gh-release@v1
       with:
         tag_name: v${{ steps.get-version.outputs.VERSION }}
         name: v${{ steps.get-version.outputs.VERSION }}
-        body: |
-          # AstrBot GIF转视频插件 v${{ steps.get-version.outputs.VERSION }} 发布
-          
-          ## 🎉 版本更新
-          
-          AstrBot GIF转视频插件 v${{ steps.get-version.outputs.VERSION }} 现已发布！
-          
-
+        body: ${{ steps.read-changelog.outputs.changelog }}
         draft: false
         prerelease: false
       env:
