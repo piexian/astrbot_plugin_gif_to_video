@@ -300,18 +300,19 @@ class GifToVideoPlugin(Star):
         provider_id = getattr(req, "provider_id", None)
         if not provider_id:
             # 尝试从其他方式获取provider_id
-            provider_inst = self.context.get_using_provider(
-                umo=event.unified_msg_origin
-            )
-            if provider_inst:
-                # 尝试直接获取provider的ID
-                provider_id = getattr(provider_inst, "id", None)
-                if not provider_id:
-                    # 如果没有id属性，尝试通过实例匹配
-                    provider_id = self._get_provider_id_by_instance(provider_inst)
+            try:
+                provider_inst = self.context.get_using_provider()
+                if provider_inst:
+                    # 尝试直接获取provider的ID
+                    provider_id = getattr(provider_inst, "id", None)
+                    if not provider_id:
+                        # 如果没有id属性，尝试通过实例匹配
+                        provider_id = self._get_provider_id_by_instance(provider_inst)
+            except Exception as e:
+                logger.debug(f"[{self.PLUGIN_NAME}] 获取provider时出错: {e}")
 
         if not provider_id:
-            logger.warning(f"[{self.PLUGIN_NAME}] 无法获取provider_id")
+            logger.debug(f"[{self.PLUGIN_NAME}] 无法获取provider_id，插件将跳过处理")
             return
 
         enabled_provider_id = self.config.get("enabled_provider_id", "")
