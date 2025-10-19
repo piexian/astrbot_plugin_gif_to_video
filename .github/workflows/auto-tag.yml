@@ -80,12 +80,10 @@ jobs:
         
     - name: Create Release
       if: steps.check-tag.outputs.exists == 'false'
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v1
       with:
         tag_name: v${{ steps.get-version.outputs.VERSION }}
-        release_name: v${{ steps.get-version.outputs.VERSION }}
+        name: v${{ steps.get-version.outputs.VERSION }}
         body: |
           ## v${{ steps.get-version.outputs.VERSION }} 发布
           
@@ -99,3 +97,5 @@ jobs:
           查看CHANGELOG.md了解详细信息。
         draft: false
         prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
