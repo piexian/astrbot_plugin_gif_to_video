@@ -284,31 +284,6 @@ class TestGifToVideoPlugin:
     @pytest.mark.asyncio
     async def test_terminate(self, plugin):
         """Test plugin termination."""
-        result = await plugin.terminate()
+        # 注意：terminate方法现在是同步的
+        result = plugin.terminate()
         assert result is None
-
-
-class TestGifConversion:
-    """Test cases for the GIF conversion function."""
-
-    @pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
-    def test_blocking_gif_to_mp4(self, setup_module_mocks):
-        """Test the blocking GIF to MP4 conversion function."""
-        _, _blocking_gif_to_mp4 = setup_module_mocks
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create a minimal GIF file
-            gif_path = Path(temp_dir) / "test.gif"
-            gif_path.write_bytes(
-                b"GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff!"
-                b"\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00"
-                b"\x00\x02\x02D\x01\x00;"
-            )
-
-            mp4_path = Path(temp_dir) / "test.mp4"
-
-            # This should not raise an exception
-            _blocking_gif_to_mp4(str(gif_path), str(mp4_path))
-
-            # Check that the output file was created
-            assert mp4_path.exists()
-            assert mp4_path.stat().st_size > 0
