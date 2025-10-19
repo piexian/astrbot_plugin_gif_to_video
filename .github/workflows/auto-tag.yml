@@ -34,7 +34,7 @@ jobs:
             data = yaml.safe_load(f)
         version = data.get('version', '')
         if version:
-            print(f'VERSION={version}', end='')
+            print(f'VERSION={version}', flush=True)
         " >> $GITHUB_OUTPUT
         
     - name: Extract version from main.py
@@ -48,7 +48,7 @@ jobs:
         match = re.search(r'@register\([^)]*\"([^\"]+)\"[^)]*\)', content)
         if match:
             version = match.group(1)
-            print(f'VERSION={version}', end='')
+            print(f'VERSION={version}', flush=True)
         " >> $GITHUB_OUTPUT
         
     - name: Check if versions match
