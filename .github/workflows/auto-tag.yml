@@ -1,0 +1,101 @@
+name: Auto Tag on Version Update
+
+on:
+  push:
+    branches: [ master, main ]
+    paths:
+      - 'metadata.yaml'
+      - 'main.py'
+
+jobs:
+  auto-tag:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # 获取完整历史记录以便比较
+        
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+        
+    - name: Install PyYAML
+      run: pip install PyYAML
+      
+    - name: Extract version from metadata.yaml
+      id: get-version
+      run: |
+        python -c "
+        import yaml
+        with open('metadata.yaml', 'r') as f:
+            data = yaml.safe_load(f)
+        version = data.get('version', '')
+        if version:
+            print(f'VERSION={version}', end='')
+        " >> $GITHUB_OUTPUT
+        
+    - name: Extract version from main.py
+      id: get-version-main
+      run: |
+        python -c "
+        import re
+        with open('main.py', 'r') as f:
+            content = f.read()
+        # 查找 @register 装饰器中的版本号
+        match = re.search(r'@register\([^)]*\"([^\"]+)\"[^)]*\)', content)
+        if match:
+            version = match.group(1)
+            print(f'VERSION={version}', end='')
+        " >> $GITHUB_OUTPUT
+        
+    - name: Check if versions match
+      run: |
+        if [ '${{ steps.get-version.outputs.VERSION }}' != '${{ steps.get-version-main.outputs.VERSION }}' ]; then
+          echo "Version mismatch between metadata.yaml and main.py"
+          exit 1
+        fi
+        
+    - name: Check if tag already exists
+      id: check-tag
+      run: |
+        VERSION='${{ steps.get-version.outputs.VERSION }}'
+        if git rev-parse "refs/tags/$VERSION" >/dev/null 2>&1; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Create and push tag
+      if: steps.check-tag.outputs.exists == 'false'
+      run: |
+        VERSION='${{ steps.get-version.outputs.VERSION }}'
+        echo "Creating tag v$VERSION"
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git tag -a "v$VERSION" -m "v$VERSION: 自动发布版本"
+        git push origin "v$VERSION"
+        
+    - name: Create Release
+      if: steps.check-tag.outputs.exists == 'false'
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ steps.get-version.outputs.VERSION }}
+        release_name: v${{ steps.get-version.outputs.VERSION }}
+        body: |
+          ## v${{ steps.get-version.outputs.VERSION }} 发布
+          
+          此版本由GitHub Actions自动发布。
+          
+          ### 主要更新
+          - 代码质量提升和bug修复
+          - 优化测试代码
+          - 通过ruff代码检查
+          
+          查看CHANGELOG.md了解详细信息。
+        draft: false
+        prerelease: false
