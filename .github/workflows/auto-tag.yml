@@ -28,28 +28,12 @@ jobs:
     - name: Extract version from metadata.yaml
       id: get-version
       run: |
-        python -c "
-        import yaml
-        with open('metadata.yaml', 'r') as f:
-            data = yaml.safe_load(f)
-        version = data.get('version', '')
-        if version:
-            print(f'VERSION={version}', flush=True)
-        " >> $GITHUB_OUTPUT
+        python3 -c "import yaml; f=open('metadata.yaml', 'r'); data=yaml.safe_load(f); f.close(); version=data.get('version', ''); print(f'VERSION={version}') if version else None" >> $GITHUB_OUTPUT
         
     - name: Extract version from main.py
       id: get-version-main
       run: |
-        python -c "
-        import re
-        with open('main.py', 'r') as f:
-            content = f.read()
-        # 查找 @register 装饰器中的版本号
-        match = re.search(r'@register\([^)]*\"([^\"]+)\"[^)]*\)', content)
-        if match:
-            version = match.group(1)
-            print(f'VERSION={version}', flush=True)
-        " >> $GITHUB_OUTPUT
+        python3 -c "import re; f=open('main.py', 'r'); content=f.read(); f.close(); match=re.search(r'@register\([^)]*\"([^\"]+)\"[^)]*\)', content); version=match.group(1) if match else ''; print(f'VERSION={version}') if version else None" >> $GITHUB_OUTPUT
         
     - name: Check if versions match
       run: |

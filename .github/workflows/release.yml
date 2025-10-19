@@ -1,0 +1,73 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+        
+    - name: Install PyYAML
+      run: pip install PyYAML
+      
+    - name: Get version
+      id: get-version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        
+    - name: Create plugin package
+      run: |
+        mkdir -p release
+        # 只复制插件必需的文件
+        cp main.py release/
+        cp metadata.yaml release/
+        cp _conf_schema.json release/
+        cp requirements.txt release/
+        cp README.md release/
+        cp CHANGELOG.md release/
+        
+        # 创建压缩包
+        cd release
+        tar -czf ../astrbot_plugin_gif_to_video-${{ steps.get-version.outputs.VERSION }}.tar.gz *
+        cd ..
+        
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ steps.get-version.outputs.VERSION }}
+        name: v${{ steps.get-version.outputs.VERSION }}
+        body: |
+          ## v${{ steps.get-version.outputs.VERSION }} 发布
+          
+          此版本包含以下文件：
+          - main.py - 插件主文件
+          - metadata.yaml - 插件元数据
+          - _conf_schema.json - 配置架构
+          - requirements.txt - 依赖列表
+          - README.md - 使用说明
+          - CHANGELOG.md - 更新日志
+          
+          ### 安装方法
+          1. 下载压缩包并解压
+          2. 将整个文件夹复制到 AstrBot 的 data/plugins 目录
+          3. 重启 AstrBot
+          
+          查看CHANGELOG.md了解详细信息。
+        files: |
+          astrbot_plugin_gif_to_video-${{ steps.get-version.outputs.VERSION }}.tar.gz
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

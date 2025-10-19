@@ -11,19 +11,26 @@ astrbot_plugin_gif_to_video/
 │   │   ├── bug_report.md         # 错误报告模板
 │   │   └── feature_request.md    # 功能请求模板
 │   └── workflows/
-│       └── lint.yml              # CI/CD工作流配置
-├── tests/
+│       ├── auto-tag.yml          # 自动标签工作流
+│       └── release.yml           # 发布工作流
+├── docs/                         # 文档目录
+│   ├── CONTRIBUTING.md           # 贡献指南
+│   ├── GITHUB_READINESS_CHECKLIST.md  # GitHub准备检查清单
+│   └── REPOSITORY_STRUCTURE.md  # 仓库结构说明
+├── releases/                     # 发布公告目录
+│   ├── RELEASE_ANNOUNCEMENT_v2.0.4.md  # v2.0.4发布公告
+│   └── RELEASE_ANNOUNCEMENT_v2.0.5.md  # v2.0.5发布公告
+├── tests/                        # 测试目录
 │   ├── __init__.py               # 测试包初始化
+│   ├── pytest.ini               # pytest配置
 │   ├── test_conversion.py        # 转换功能测试
 │   └── test_plugin.py            # 插件功能测试
 ├── _conf_schema.json             # 插件配置模式
 ├── CHANGELOG.md                  # 更新日志
-├── CONTRIBUTING.md               # 贡献指南
 ├── LICENSE                       # 许可证文件
 ├── README.md                     # 插件说明文档
 ├── main.py                       # 插件主代码
 ├── metadata.yaml                 # 插件元数据
-├── pytest.ini                   # pytest配置
 └── requirements.txt             # 依赖列表
 ```
 
@@ -43,18 +50,33 @@ astrbot_plugin_gif_to_video/
 - **CONTRIBUTING.md**: 贡献指南，说明如何为项目做贡献
 - **LICENSE**: 许可证文件，本项目使用GNU AGPL v3许可证
 
+### 文档目录
+
+- **docs/**: 文档目录，包含项目相关文档
+- **docs/CONTRIBUTING.md**: 贡献指南，说明如何为项目做贡献
+- **docs/GITHUB_READINESS_CHECKLIST.md**: GitHub准备检查清单
+- **docs/REPOSITORY_STRUCTURE.md**: 仓库结构说明文档
+
+### 发布公告目录
+
+- **releases/**: 发布公告目录，包含各版本的发布公告
+- **releases/RELEASE_ANNOUNCEMENT_v2.0.4.md**: v2.0.4版本发布公告
+- **releases/RELEASE_ANNOUNCEMENT_v2.0.5.md**: v2.0.5版本发布公告
+
 ### 测试文件
 
 - **tests/**: 测试目录，包含所有测试代码
+- **tests/pytest.ini**: pytest配置文件，定义测试运行参数
 - **tests/test_conversion.py**: 测试GIF转换功能
 - **tests/test_plugin.py**: 测试插件的主要功能
-- **pytest.ini**: pytest配置文件，定义测试运行参数
 
 ### GitHub配置
 
 - **.github/**: GitHub相关配置目录
 - **.github/ISSUE_TEMPLATE/**: Issue模板，用于标准化错误报告和功能请求
 - **.github/workflows/**: CI/CD工作流配置
+- **.github/workflows/auto-tag.yml**: 自动标签工作流，用于版本更新时自动创建标签
+- **.github/workflows/release.yml**: 发布工作流，用于创建GitHub Release
 
 ## 开发环境设置
 
