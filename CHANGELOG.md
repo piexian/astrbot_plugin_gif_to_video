@@ -5,7 +5,7 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [2.3.0] - 2025-02-16
+## [2.3.0] - 2025-10-26
 
 ### 改动
 - **功能聚焦**：移除已失效的 Gemini 视频分析与 FFmpeg 拆轨逻辑，插件专注于 GIF → MP4 转换 + 多帧预览注入。
@@ -16,7 +16,7 @@
 ### 修复
 - 解决删除 `gemini_content.py`、`videos_cliper.py` 后 `main.py` 仍引用导致的 `ModuleNotFoundError`。
 
-## [2.2.0] - 2025-10-16
+## [2.2.0] - 2025-10-26
 
 ### 新增
 - **GIF 预览帧注入**：为非 Gemini 服务商自动抽取多帧 PNG，并随请求发送，帮助 LLM 理解整段动图。
