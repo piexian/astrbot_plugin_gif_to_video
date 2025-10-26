@@ -22,13 +22,6 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, StarTools, register
 import astrbot.api.message_components as Comp
 
-from .gemini_content import (
-    process_audio_with_gemini,
-    process_images_with_gemini,
-    process_video_with_gemini,
-)
-from .videos_cliper import separate_audio_video, extract_frame
-
 
 def _blocking_gif_to_mp4(input_path: str, output_path: str):
     # 使用 MoviePy 在独立线程中执行转换。这里尽量减少控制台输出并关闭音频轨道。
@@ -67,16 +60,16 @@ def _blocking_gif_to_mp4(input_path: str, output_path: str):
 @register(
     "astrbot_plugin_gif_to_video",
     "氕氙",
-    "GIF转视频分析插件，自动为默认服务商或手动指定的服务商启用GIF转视频避免报错。",
-    "2.2.0",
+    "GIF 转视频适配插件，自动替换 GIF 为 MP4 与多帧预览，避免服务商报错。",
+    "2.3.0",
     "https://github.com/piexian/astrbot_plugin_gif_to_video",
 )
 class GifToVideoPlugin(Star):
     """
-    一个智能的GIF 适配插件。
+    一个智能的 GIF 适配插件。
     - 自动模式：当配置为空时，自动为 AstrBot 的全局默认服务商工作。
     - 手动模式：当配置不为空时，严格按照配置列表中的服务商 ID 工作。
-    - 视频分析：当服务商为Gemini且启用时，可对GIF内容进行分析。
+    - GIF 预览：自动提取多帧图片，帮助任意多模态 LLM 理解动图内容。
     """
 
     PLUGIN_NAME = "astrbot_plugin_gif_to_video"
@@ -99,33 +92,11 @@ class GifToVideoPlugin(Star):
             1, int(self.config.get("preview_frame_count", 4))
         )
 
-        # 视频分析配置
-        self.video_analysis_enabled = self.config.get("video_analysis_enabled", False)
-        self.gemini_api_key = self.config.get("gemini_api_key")
-        self.gemini_base_url = self.config.get("gemini_base_url")
-        self.gemini_model = self.config.get("gemini_model", "gemini-2.5-flash")
-
-        # 验证模型名称是否有效
-        try:
-            from .gemini_content import SUPPORTED_MODELS, DEFAULT_MODEL_NAME
-
-            if self.gemini_model not in SUPPORTED_MODELS:
-                logger.warning(
-                    f"[{self.PLUGIN_NAME}] 配置的模型 {self.gemini_model} 不支持，"
-                    f"将使用默认模型 {DEFAULT_MODEL_NAME}"
-                )
-                self.gemini_model = DEFAULT_MODEL_NAME
-        except ImportError as e:
-            logger.error(f"[{self.PLUGIN_NAME}] 导入模型配置失败: {e}")
-            self.gemini_model = "gemini-2.5-flash"  # 硬编码备用值
-        self.max_video_size = self.config.get("max_video_size", 30)
-        self.show_progress = self.config.get("show_progress", True)
-
         # 在插件加载时检查 FFmpeg 是否存在
         if shutil.which("ffmpeg") is None:
             logger.error(
                 f"插件 [{self.PLUGIN_NAME}] 加载失败：未在系统中找到核心依赖 FFmpeg。"
-                "GIF 转换和视频分析功能将无法使用。请参照 README.md 安装 FFmpeg 后重启 AstrBot。"
+                "GIF 转换功能将无法使用。请参照 README.md 安装 FFmpeg 后重启 AstrBot。"
             )
         else:
             self.ffmpeg_available = True
@@ -142,8 +113,6 @@ class GifToVideoPlugin(Star):
                 logger.info(
                     f"{self.PLUGIN_NAME} 已加载，运行在【自动模式】，默认服务商: {self.default_provider_id}"
                 )
-            if self.video_analysis_enabled:
-                logger.info(f"[{self.PLUGIN_NAME}] 视频分析功能已启用。")
 
     def _get_provider_map(self) -> dict[str, object]:
         """获取 provider_id -> provider 实例的映射。"""
@@ -411,181 +380,6 @@ class GifToVideoPlugin(Star):
             return prompt.replace(marker, f"{marker}{hint}")
         return f"{hint}\n{prompt}" if prompt else hint
 
-    def _is_gemini_provider(self, provider_id: str) -> bool:
-        """检查给定的provider_id是否属于Gemini系列模型"""
-        if not provider_id:
-            return False
-        try:
-            # 使用正确的API方法 get_provider_by_id
-            provider_inst = self.context.get_provider_by_id(provider_id)
-            if (
-                provider_inst
-                and hasattr(provider_inst, "meta")
-                and provider_inst.meta().type == "googlegenai_chat_completion"
-            ):
-                logger.debug(
-                    f"[{self.PLUGIN_NAME}] Provider '{provider_id}' is a Gemini provider."
-                )
-                return True
-        except Exception as e:
-            logger.warning(
-                f"[{self.PLUGIN_NAME}] Checking provider type for '{provider_id}' failed: {e}"
-            )
-
-        logger.debug(
-            f"[{self.PLUGIN_NAME}] Provider '{provider_id}' is not a Gemini provider."
-        )
-        return False
-
-    async def _get_gemini_api_config(self):
-        """获取Gemini API配置的辅助函数"""
-        api_key = None
-        proxy_url = None
-
-        # 1. 优先尝试从框架的默认Provider获取
-        provider = self.context.provider_manager.curr_provider_inst
-        if provider and provider.meta().type == "googlegenai_chat_completion":
-            logger.info("检测到框架默认LLM为Gemini，将使用框架配置。")
-            api_key = provider.get_current_key()
-            # 获取代理URL，支持多种可能的属性名
-            proxy_url = getattr(provider, "api_base", None) or getattr(
-                provider, "base_url", None
-            )
-            if proxy_url:
-                logger.info(f"使用框架配置的代理地址：{proxy_url}")
-            else:
-                logger.info("框架配置中未找到代理地址，将使用官方API。")
-
-        # 2. 如果默认Provider不是Gemini，尝试查找其他Gemini Provider
-        if not api_key:
-            logger.info("默认Provider不是Gemini，搜索其他Provider...")
-            for provider_name, provider_inst in self._get_provider_map().items():
-                try:
-                    if (
-                        provider_inst
-                        and hasattr(provider_inst, "meta")
-                        and provider_inst.meta().type == "googlegenai_chat_completion"
-                    ):
-                        logger.info(
-                            f"在Provider列表中找到Gemini配置：{provider_name}，将使用该配置。"
-                        )
-                        api_key = provider_inst.get_current_key()
-                        proxy_url = getattr(provider_inst, "api_base", None) or getattr(
-                            provider_inst, "base_url", None
-                        )
-                        if proxy_url:
-                            logger.info(
-                                f"使用Provider {provider_name} 的代理地址：{proxy_url}"
-                            )
-                        break
-                except Exception as provider_error:
-                    logger.warning(
-                        f"[{self.PLUGIN_NAME}] 读取 Provider {provider_name} 配置失败: {provider_error}"
-                    )
-
-        # 3. 如果框架中没有找到Gemini配置，则回退到插件自身配置
-        if not api_key:
-            logger.info("框架中未找到Gemini配置，回退到插件自身配置。")
-            api_key = self.gemini_api_key
-            proxy_url = self.gemini_base_url
-            if api_key:
-                logger.info("使用插件配置的API Key。")
-                if proxy_url:
-                    logger.info(f"使用插件配置的代理地址：{proxy_url}")
-                else:
-                    logger.info("插件配置中未设置代理地址，将使用官方API。")
-
-        return api_key, proxy_url
-
-    async def _process_video_analysis(
-        self, event: AstrMessageEvent, video_path: Path, req
-    ):
-        """处理视频分析"""
-        api_key, proxy_url = await self._get_gemini_api_config()
-        if not api_key:
-            logger.error(
-                f"[{self.PLUGIN_NAME}] 未找到可用的Gemini API Key，无法进行视频分析。"
-            )
-            return
-
-        video_size_mb = video_path.stat().st_size / (1024 * 1024)
-        summary = None
-
-        try:
-            if video_size_mb > self.max_video_size:
-                # 大视频处理流程
-                if self.show_progress:
-                    await event.send(
-                        event.plain_result(
-                            f"视频大小为 {video_size_mb:.2f}MB，采用音频+关键帧模式进行分析..."
-                        )
-                    )
-
-                separated_files = await separate_audio_video(str(video_path))
-                if not separated_files:
-                    await event.send(
-                        event.plain_result("无法分离视频的音频和视频轨道。")
-                    )
-                    return
-                audio_path, video_only_path = separated_files
-
-                description, timestamps, _ = await process_audio_with_gemini(
-                    api_key, audio_path, proxy_url, model_name=self.gemini_model
-                )
-                if not description or not timestamps:
-                    await event.send(event.plain_result("无法分析视频的音频内容。"))
-                    return
-
-                image_paths = []
-                for ts in timestamps:
-                    frame_path = await extract_frame(video_only_path, ts)
-                    if frame_path:
-                        image_paths.append(frame_path)
-
-                if not image_paths:
-                    summary = description
-                else:
-                    prompt = f"这是关于一个视频的摘要和一些从该视频中提取的关键帧。视频摘要如下：\n\n{description}\n\n请结合摘要和这些关键帧，对整个视频内容进行一个全面、生动的总结。"
-                    summary_tuple = await process_images_with_gemini(
-                        api_key,
-                        prompt,
-                        image_paths,
-                        proxy_url,
-                        model_name=self.gemini_model,
-                    )
-                    summary = summary_tuple if summary_tuple else "无法生成最终摘要。"
-            else:
-                # 小视频处理流程
-                if self.show_progress:
-                    await event.send(
-                        event.plain_result(
-                            f"视频大小为 {video_size_mb:.2f}MB，直接上传视频进行分析..."
-                        )
-                    )
-                prompt = (
-                    "请详细描述这个视频的内容，包括场景、人物、动作和传达的核心信息。"
-                )
-                summary_tuple = await process_video_with_gemini(
-                    api_key,
-                    prompt,
-                    str(video_path),
-                    proxy_url,
-                    model_name=self.gemini_model,
-                )
-                summary = summary_tuple if summary_tuple else "无法理解视频内容。"
-
-            if summary:
-                # 将摘要添加到原始prompt的前面
-                original_prompt = req.prompt.replace("[视频(GIF已转换)]", "").strip()
-                req.prompt = f"这是一个视频的内容摘要：\n'{summary}'\n\n请基于这个摘要回答以下问题：{original_prompt}"
-                logger.info(
-                    f"[{self.PLUGIN_NAME}] 视频分析完成，更新后的Prompt: {req.prompt}"
-                )
-
-        except Exception as e:
-            logger.error(f"[{self.PLUGIN_NAME}] 视频分析失败: {e}", exc_info=True)
-            await event.send(event.plain_result("抱歉，视频分析时出现错误。"))
-
     async def terminate(self):
         """插件终止时调用，释放资源"""
         logger.info(f"[{self.PLUGIN_NAME}] 插件已终止，清理临时文件")
@@ -805,52 +599,35 @@ class GifToVideoPlugin(Star):
         if hasattr(req, "prompt") and "[图片]" in req.prompt:
             req.prompt = req.prompt.replace("[图片]", "[视频(GIF已转换)]", 1)
 
-        # 检查是否为Gemini服务商以及是否启用了视频分析
-        is_gemini = self._is_gemini_provider(provider_id)
-        if is_gemini and self.video_analysis_enabled:
-            logger.info(
-                f"[{self.PLUGIN_NAME}] Gemini服务商且视频分析已启用，开始分析视频..."
+        try:
+            preview_frames = await asyncio.to_thread(
+                self._ensure_preview_frames, cache_key, video_path
             )
-            await self._process_video_analysis(event, video_path, req)
-            # 分析完成后，不需要再将视频URL添加到image_urls，因为内容摘要已经注入prompt
+        except Exception as frame_error:
+            logger.error(
+                f"[{self.PLUGIN_NAME}] 生成 GIF 预览帧异常: {frame_error}",
+                exc_info=True,
+            )
+            preview_frames = []
+
+        if not hasattr(req, "image_urls") or req.image_urls is None:
+            req.image_urls = []
+
+        if preview_frames:
+            appended = 0
+            for frame_path in preview_frames:
+                path_str = str(frame_path)
+                if path_str not in req.image_urls:
+                    req.image_urls.append(path_str)
+                    appended += 1
+            current_prompt = getattr(req, "prompt", "")
+            req.prompt = self._inject_preview_hint(current_prompt, appended)
+            logger.info(
+                f"[{self.PLUGIN_NAME}] 已注入 {appended} 帧 GIF 预览图片，帮助 LLM 理解动图。"
+            )
         else:
-            if not is_gemini:
-                logger.info(
-                    f"[{self.PLUGIN_NAME}] 当前服务商 '{provider_id}' 不是Gemini，跳过视频分析。"
-                )
-            else:  # is_gemini but not enabled
-                logger.info(f"[{self.PLUGIN_NAME}] 视频分析功能未启用，跳过分析。")
-
-            try:
-                preview_frames = await asyncio.to_thread(
-                    self._ensure_preview_frames, cache_key, video_path
-                )
-            except Exception as frame_error:
-                logger.error(
-                    f"[{self.PLUGIN_NAME}] 生成 GIF 预览帧异常: {frame_error}",
-                    exc_info=True,
-                )
-                preview_frames = []
-
-            if not hasattr(req, "image_urls") or req.image_urls is None:
-                req.image_urls = []
-
-            if preview_frames:
-                appended = 0
-                for frame_path in preview_frames:
-                    path_str = str(frame_path)
-                    if path_str not in req.image_urls:
-                        req.image_urls.append(path_str)
-                        appended += 1
-                current_prompt = getattr(req, "prompt", "")
-                req.prompt = self._inject_preview_hint(current_prompt, appended)
-                logger.info(
-                    f"[{self.PLUGIN_NAME}] 已为 provider {provider_id} 注入 {appended} 帧 GIF 预览图片。"
-                )
-            else:
-                current_prompt = getattr(req, "prompt", "")
-                req.prompt = self._inject_preview_hint(current_prompt, 0)
-                logger.warning(
-                    f"[{self.PLUGIN_NAME}] 无法为 provider {provider_id} 生成 GIF 预览帧，"
-                    "仅在 prompt 中写明 GIF 已转换。"
-                )
+            current_prompt = getattr(req, "prompt", "")
+            req.prompt = self._inject_preview_hint(current_prompt, 0)
+            logger.warning(
+                f"[{self.PLUGIN_NAME}] 无法生成 GIF 预览帧，仅在 prompt 中记录已转换。"
+            )
