@@ -5,6 +5,76 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.2.0] - 2025-02-16
+
+### 新增
+- **GIF 预览帧注入**：为非 Gemini 服务商自动抽取多帧 PNG，并随请求发送，帮助 LLM 理解整段动图。
+- **配置项**：新增 `preview_frame_count`，可自定义预览帧数量。
+
+### 改进
+- **请求流程**：在 on_llm_request 中使用 `event.send + plain_result`，进度提示和异常通知不再报错。
+- **缓存体系**：统一管理视频与帧缓存，自动过期清理，复用转换结果。
+- **Provider 识别**：重写 provider 映射与检测逻辑，兼容 `inst_map` / `get_all_providers` 等多种路径，Gemini 检测更可靠。
+- **自动模式**：当无法直接获取 provider id 时，回退到实例比对，确保默认服务商能够识别。
+
+### 修复
+- **Gemini 检测**：修正 `_is_gemini_provider` 中对不存在的 `context.get_provider` 的调用，避免永远判定为非 Gemini。
+- **提示词损坏**：替换错误的 `event.make_result().plain_result(...)` 调用，修复在分析阶段无法发送提示的问题。
+- **版本字段**：同步 metadata/register 版本号至 `2.2.0`，与实际功能保持一致。
+
+## [2.1.2] - 2025-10-19
+
+### 修复
+- **Provider ID 匹配逻辑**: 改进 `_get_provider_id_by_instance` 方法，修复无法正确匹配 provider 实例的问题
+- **调试信息增强**: 添加详细的调试日志，包括 provider 类型、属性和可用 provider 列表
+- **实例匹配优化**: 使用 `is` 比较和类型匹配来正确识别 provider ID
+- **回退机制**: 当直接获取 ID 失败时，通过遍历所有 providers 进行匹配
+
+### 改进
+- **调试能力**: 大幅增强问题排查能力，提供完整的 provider 信息
+- **兼容性**: 改进对不同类型 provider 的兼容性
+- **错误恢复**: 增强在 provider 获取失败时的恢复能力
+
+## [2.1.1] - 2025-10-19
+
+### 修复
+- **Provider ID 获取**: 修复无法正确获取 provider_id 导致插件跳过处理的问题
+- **API 兼容性**: 适配 AstrBot 框架的最新 API，使用 `get_using_provider(umo=event.unified_msg_origin)`
+- **属性检测**: 改进 provider 对象属性检测，支持 `provider_id` 和 `id` 两种属性名
+- **调试日志**: 增强调试日志输出，便于问题排查
+
+### 改进
+- **错误处理**: 改进 provider 获取失败时的错误处理逻辑
+- **代码健壮性**: 提升代码在不同 AstrBot 版本下的兼容性
+- **日志详细度**: 增加更详细的调试信息
+
+## [2.1.0] - 2025-10-19
+
+### 新增
+- 添加智能模型选择和自动回退机制
+- 新增模型能力验证系统
+- 支持自定义Gemini模型配置
+- 添加模型描述和代数信息
+
+### 改进
+- 根据模型类型自动优化超时时间设置
+- 增强错误处理，添加ModelValidationError异常类型
+- 改进日志记录，包含模型选择和回退信息
+- 优化文档注释，修正不一致的默认值描述
+- 更新视频处理方式，使用base64 inline_data上传（兼容Gemini 2.5）
+- 添加文件大小验证，防止超过API限制
+
+### 性能优化
+- 根据模型能力动态调整请求参数
+- 减少不必要的模型验证调用
+- 优化视频文件处理流程，直接使用base64编码
+
+### 修复
+- 修正文档注释中模型默认值的不一致问题
+- 修复硬编码模型名称导致的可维护性问题
+- 修复配置文件兼容性问题（boolean→bool, integer→int）
+- 修复视频上传方式，改为Gemini 2.5兼容的base64 inline_data方式
+
 ## [2.0.8] - 2025-10-19
 
 ### 修复
@@ -135,6 +205,9 @@
 - 临时文件自动清理
 - 详细的日志记录
 
+[2.1.0]: https://github.com/piexian/astrbot_plugin_gif_to_video/compare/v2.0.8...v2.1.0
+[2.0.8]: https://github.com/piexian/astrbot_plugin_gif_to_video/compare/v2.0.7...v2.0.8
+[2.0.7]: https://github.com/piexian/astrbot_plugin_gif_to_video/compare/v2.0.6...v2.0.7
 [2.0.6]: https://github.com/piexian/astrbot_plugin_gif_to_video/compare/v2.0.5...v2.0.6
 [2.0.5]: https://github.com/piexian/astrbot_plugin_gif_to_video/compare/v2.0.4...v2.0.5
 [2.0.4]: https://github.com/piexian/astrbot_plugin_gif_to_video/compare/v2.0.3...v2.0.4
