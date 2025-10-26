@@ -37,7 +37,6 @@ jobs:
         cp main.py release/
         cp metadata.yaml release/
         cp _conf_schema.json release/
-        cp requirements.txt release/
         cp README.md release/
         cp CHANGELOG.md release/
         
@@ -58,7 +57,6 @@ jobs:
           - main.py - 插件主文件
           - metadata.yaml - 插件元数据
           - _conf_schema.json - 配置架构
-          - requirements.txt - 依赖列表
           - README.md - 使用说明
           - CHANGELOG.md - 更新日志
           
