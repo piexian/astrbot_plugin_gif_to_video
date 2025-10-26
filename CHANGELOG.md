@@ -16,7 +16,7 @@
 ### 修复
 - 解决删除 `gemini_content.py`、`videos_cliper.py` 后 `main.py` 仍引用导致的 `ModuleNotFoundError`。
 
-## [2.2.0] - 2025-02-16
+## [2.2.0] - 2025-10-16
 
 ### 新增
 - **GIF 预览帧注入**：为非 Gemini 服务商自动抽取多帧 PNG，并随请求发送，帮助 LLM 理解整段动图。
