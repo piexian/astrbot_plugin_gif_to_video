@@ -43,6 +43,7 @@ jobs:
     - name: Create and push tag
       if: steps.check-tag.outputs.exists == 'false'
       run: |
+        cd "$GITHUB_WORKSPACE"
         VERSION='${{ steps.get-version.outputs.VERSION }}'
         echo "Creating tag v$VERSION"
         git config --local user.email "action@github.com"
