@@ -1,5 +1,5 @@
 ---
-name: "缺陷反馈（中文）"
+name: "反馈"
 about: "报告 AstrBot GIF 转视频插件的问题"
 title: "[BUG] 简要描述问题"
 labels: [bug]
@@ -22,7 +22,6 @@ assignees: []
 - 插件版本（metadata.yaml 的 version 字段）：
 - 部署方式（本地 / Docker / 其他）：
 - 操作系统：
-- Python 版本：
 
 ## 📷 GIF / 日志 / 截图
 如有，请附上相关的 GIF、转换后的 MP4、终端日志或报错截图。日志请至少包含以 [astrbot_plugin_gif_to_video] 开头的关键信息。
