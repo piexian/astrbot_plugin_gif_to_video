@@ -1,6 +1,6 @@
 # AstrBot GIF转视频插件 (astrbot_plugin_gif_to_video)
 
-一个为 [AstrBot](https://github.com/Soulter/AstrBot) 设计的 GIF 适配插件。它会自动将用户发送的 GIF 动图转换为 MP4 视频格式，并额外抽取多帧 PNG 预览，帮助不支持 GIF 的 LLM 服务商理解完整动画。
+一个为 [AstrBot](https://github.com/AstrBotDevs/AstrBot) 设计的 GIF 适配插件。它会自动将用户发送的 GIF 动图转换为 MP4 视频格式，并额外抽取多帧 PNG 预览，帮助不支持 GIF 的 LLM 服务商理解完整动画。
 
 ## ✨ 核心功能
 
@@ -126,3 +126,4 @@ pytest -q
 ## 📝 更新日志
 
 查看 [CHANGELOG.md](CHANGELOG.md) 了解详细的版本更新历史。
+
